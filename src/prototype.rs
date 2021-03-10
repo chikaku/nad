@@ -1,4 +1,6 @@
+use crate::instruction::Instruction;
 use crate::value::{Constant, LocalValue, Upvalue};
+use ansi_term::Color::Green;
 
 pub struct Prototype {
     pub source: String,
@@ -7,7 +9,7 @@ pub struct Prototype {
     pub num_params: u8,
     pub is_vararg: u8,
     pub max_stack_size: u8,
-    pub code: Vec<u32>,
+    pub code: Vec<Instruction>,
     pub constants: Vec<Constant>,
     pub upvalue: Vec<Upvalue>,
     pub protos: Vec<Prototype>,
@@ -50,14 +52,19 @@ impl Prototype {
                 Some(n) => n.to_string(),
                 None => String::from("-"),
             };
-            println!("\t{}\t[{}]\t0x{:08x}", index + 1, line, code);
+            println!(
+                "\t{}\t[{}]\t{}",
+                index + 1,
+                line,
+                Green.paint(format!("{}", code))
+            );
         }
     }
 
     fn print_consts(&self) {
         println!("Constants ({}):", self.constants.len());
         for (index, value) in self.constants.iter().enumerate() {
-            println!("\t{}\t{}", index + 1, value);
+            println!("\t{}\t{}", index + 1, Green.paint(format!("{}", value)));
         }
     }
 

@@ -4,6 +4,7 @@ use std::io::Read;
 use std::ops::Add;
 use std::path::Path;
 
+use crate::instruction::Instruction;
 use crate::prototype::Prototype;
 use crate::value::{Constant, LocalValue, Upvalue};
 
@@ -105,11 +106,11 @@ impl<T: std::io::Read> Reader<T> {
         assert_eq!(self.read_luanum(), h.luac_num, "float format mismatch");
     }
 
-    fn read_code(&mut self) -> Vec<u32> {
+    fn read_code(&mut self) -> Vec<Instruction> {
         let count = self.read_uint32();
         let mut code = Vec::with_capacity(count as usize);
         for _ in 0..count {
-            code.push(self.read_uint32())
+            code.push(Instruction(self.read_uint32()))
         }
         code
     }
