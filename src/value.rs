@@ -37,3 +37,13 @@ impl fmt::Display for Constant {
         }
     }
 }
+
+#[derive(PartialEq, Debug)]
+pub enum Value {
+    None,
+    Nil,
+    Bool(bool),
+    Integer(i64),
+    Float(f64),
+    String(String),
+}

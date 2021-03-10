@@ -5,6 +5,7 @@ mod instruction;
 mod opcode;
 mod prototype;
 mod reader;
+mod stack;
 mod value;
 
 use ansi_term::Color::{Green, Red};
