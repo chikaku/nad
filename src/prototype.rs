@@ -1,5 +1,5 @@
 use crate::instruction::Instruction;
-use crate::value::{Constant, LocalValue, Upvalue};
+use crate::value::{LocalValue, Upvalue, Value};
 use ansi_term::Color::Green;
 
 pub struct Prototype {
@@ -10,7 +10,7 @@ pub struct Prototype {
     pub is_vararg: u8,
     pub max_stack_size: u8,
     pub code: Vec<Instruction>,
-    pub constants: Vec<Constant>,
+    pub constants: Vec<Value>,
     pub upvalue: Vec<Upvalue>,
     pub protos: Vec<Prototype>,
     pub code_line: Vec<u32>,

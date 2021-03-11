@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::instruction::Instruction;
 use crate::prototype::Prototype;
-use crate::value::{Constant, LocalValue, Upvalue};
+use crate::value::{LocalValue, Upvalue, Value};
 
 pub struct Reader<T: std::io::Read> {
     r: T,
@@ -115,7 +115,7 @@ impl<T: std::io::Read> Reader<T> {
         code
     }
 
-    fn read_constants(&mut self) -> Vec<Constant> {
+    fn read_constants(&mut self) -> Vec<Value> {
         let count = self.read_uint32();
         let mut consts = Vec::with_capacity(count as usize);
         for _ in 0..count {
@@ -124,15 +124,15 @@ impl<T: std::io::Read> Reader<T> {
         consts
     }
 
-    fn read_constant(&mut self) -> Constant {
+    fn read_constant(&mut self) -> Value {
         use crate::value;
         match self.read_byte() {
-            value::CONST_TAG_NIL => Constant::Nil,
-            value::CONST_TAG_BOOL => Constant::Bool(self.read_byte() != 0),
-            value::CONST_TAG_INT => Constant::Integer(self.read_luaint()),
-            value::CONST_TAG_NUM => Constant::Number(self.read_luanum()),
-            value::CONST_TAG_SHORT_STR => Constant::String(self.read_string()),
-            value::CONST_TAG_LONG_STR => Constant::String(self.read_string()),
+            value::CONST_TAG_NIL => Value::Nil,
+            value::CONST_TAG_BOOL => Value::Bool(self.read_byte() != 0),
+            value::CONST_TAG_INT => Value::Integer(self.read_luaint()),
+            value::CONST_TAG_NUM => Value::Float(self.read_luanum()),
+            value::CONST_TAG_SHORT_STR => Value::String(self.read_string()),
+            value::CONST_TAG_LONG_STR => Value::String(self.read_string()),
             _ => panic!("corrupted"),
         }
     }

@@ -24,15 +24,15 @@ impl Instruction {
         &ALL[(self.0 & 0x3F) as usize]
     }
 
-    fn ax(self) -> i32 {
+    pub fn ax(self) -> i32 {
         (self.0 >> 6) as i32
     }
 
-    fn abx(self) -> (i32, i32) {
+    pub fn abx(self) -> (i32, i32) {
         ((self.0 >> 6 & 0xFF) as i32, (self.0 >> 14) as i32)
     }
 
-    fn abc(self) -> (i32, i32, i32) {
+    pub fn abc(self) -> (i32, i32, i32) {
         (
             (self.0 >> 6 & 0xFF) as i32,
             (self.0 >> 23 & 0x1FF) as i32,
@@ -40,7 +40,7 @@ impl Instruction {
         )
     }
 
-    fn asbx(self) -> (i32, i32) {
+    pub fn asbx(self) -> (i32, i32) {
         let (a, bx) = self.abx();
         (a, bx - MAX_SBX)
     }

@@ -62,7 +62,13 @@ impl Stack {
     }
 
     pub fn is_valid(&self, index: i32) -> bool {
-        index > 0 || index + (self.top as i32) + 1 > 0
+        let index = if index < 0 {
+            index + (self.top as i32) + 1
+        } else {
+            index
+        };
+
+        index >= 0 && index <= self.top as i32
     }
 
     pub fn get(&self, index: i32) -> &Value {

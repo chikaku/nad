@@ -1,14 +1,53 @@
+use crate::instruction::Instruction;
+use crate::prototype::Prototype;
 use crate::stack::Stack;
 use crate::value::Value;
 
 pub struct State {
     stack: Stack,
+    proto: Prototype,
+    pc: usize,
 }
 
 impl State {
-    pub fn new() -> State {
+    pub fn new(size: usize, proto: Prototype) -> State {
         State {
-            stack: Stack::new(16),
+            stack: Stack::new(size),
+            proto,
+            pc: 0,
+        }
+    }
+}
+
+impl State {
+    pub fn pc(&self) -> usize {
+        self.pc
+    }
+
+    pub fn add_pc(&mut self, n: i32) {
+        self.pc = (self.pc as i32 + n) as usize
+    }
+
+    pub fn fetch(&mut self) -> Instruction {
+        self.pc += 1;
+        self.proto.code[self.pc - 1]
+    }
+
+    /// push value from constant table at index
+    #[warn(mutable_borrow_reservation_conflict)]
+    pub fn get_const(&mut self, index: usize) {
+        let val = &self.proto.constants[index];
+        self.push_value(val.clone());
+    }
+
+    /// push value from stack index or constant table index
+    pub fn get_rk(&mut self, index: i32) {
+        if index > 0xFF {
+            // push constant value
+            self.get_const((index & 0xFF) as usize);
+        } else {
+            // push register value
+            self.push_index(index + 1);
         }
     }
 }
@@ -43,7 +82,7 @@ impl State {
     }
 
     #[allow(mutable_borrow_reservation_conflict)]
-    pub fn push(&mut self, index: i32) {
+    pub fn push_index(&mut self, index: i32) {
         let val = self.stack.get(index);
         self.stack.push(val.clone());
     }
@@ -52,6 +91,7 @@ impl State {
         self.stack.push(val)
     }
 
+    /// pop value set to index
     pub fn replace(&mut self, index: i32) {
         let val = self.stack.pop();
         self.stack.set(index, val);
@@ -94,12 +134,20 @@ impl State {
 }
 
 mod tests {
+    use crate::reader::Reader;
     use crate::state::State;
     use crate::value::Value;
 
+    fn new_state() -> State {
+        State::new(
+            10,
+            Reader::from_file("./luacode/hello_world.luac").prototype(),
+        )
+    }
+
     #[test]
     fn test_rotate() {
-        let mut state = State::new();
+        let mut state = new_state();
         for index in 1..6 {
             state.push_value(Value::Integer(index));
         }
@@ -111,7 +159,7 @@ mod tests {
         assert_eq!(state.pop_value(), Value::Integer(5));
         assert_eq!(state.pop_value(), Value::Integer(1));
 
-        let mut state = State::new();
+        let mut state = new_state();
         for index in 1..6 {
             state.push_value(Value::Integer(index));
         }
@@ -125,14 +173,14 @@ mod tests {
 
     #[test]
     fn test_set_top() {
-        let mut state = State::new();
+        let mut state = new_state();
         (1..6).for_each(|index| state.push_value(Value::Integer(index)));
 
         state.set_top(2);
         assert_eq!(state.pop_value(), Value::Integer(2));
         assert_eq!(state.pop_value(), Value::Integer(1));
 
-        let mut state = State::new();
+        let mut state = new_state();
         (1..2).for_each(|index| state.push_value(Value::Integer(index)));
         state.set_top(2);
         assert_eq!(state.top(), 2);

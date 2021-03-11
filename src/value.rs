@@ -16,28 +16,6 @@ pub const CONST_TAG_INT: u8 = 0x13;
 pub const CONST_TAG_SHORT_STR: u8 = 0x04;
 pub const CONST_TAG_LONG_STR: u8 = 0x14;
 
-pub enum Constant {
-    Nil,
-    Bool(bool),
-    Integer(i64),
-    Number(f64),
-    String(String),
-}
-
-use std::fmt;
-
-impl fmt::Display for Constant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Constant::Nil => write!(f, "nil"),
-            Constant::Bool(v) => write!(f, "{}", v),
-            Constant::Integer(v) => write!(f, "{}", v),
-            Constant::Number(v) => write!(f, "{}", v),
-            Constant::String(v) => write!(f, "\"{}\"", v),
-        }
-    }
-}
-
 #[derive(PartialEq, Debug, Clone)]
 pub enum Value {
     None,
@@ -46,4 +24,19 @@ pub enum Value {
     Integer(i64),
     Float(f64),
     String(String),
+}
+
+use std::fmt;
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::None => unreachable!(),
+            Value::Nil => write!(f, "nil"),
+            Value::Bool(v) => write!(f, "{}", v),
+            Value::Integer(v) => write!(f, "{}", v),
+            Value::Float(v) => write!(f, "{}", v),
+            Value::String(v) => write!(f, "\"{}\"", v),
+        }
+    }
 }
