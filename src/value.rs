@@ -38,7 +38,7 @@ impl fmt::Display for Constant {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Value {
     None,
     Nil,

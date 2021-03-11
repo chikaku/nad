@@ -1,12 +1,12 @@
 use crate::value::Value;
 
-struct Stack {
+pub struct Stack {
     slots: Vec<Value>,
     top: usize,
 }
 
 impl Stack {
-    fn new(size: usize) -> Stack {
+    pub fn new(size: usize) -> Stack {
         let mut slots = vec![];
         for _ in 0..size {
             slots.push(Value::None)
@@ -14,20 +14,24 @@ impl Stack {
         Stack { slots, top: 0 }
     }
 
-    fn check(&mut self, n: usize) {
+    pub fn top(&self) -> usize {
+        self.top
+    }
+
+    pub fn check(&mut self, n: usize) {
         let free = self.slots.len() - self.top;
         for _ in free..n {
             self.slots.push(Value::None)
         }
     }
 
-    fn push(&mut self, v: Value) {
+    pub fn push(&mut self, v: Value) {
         assert!(self.slots.len() > self.top);
         self.slots[self.top] = v;
         self.top += 1;
     }
 
-    fn pop(&mut self) -> Value {
+    pub fn pop(&mut self) -> Value {
         assert!(self.top > 0);
         self.top -= 1;
         let val = self.slots.remove(self.top);
@@ -35,31 +39,44 @@ impl Stack {
         val
     }
 
-    fn abx_index(&self, index: i32) -> i32 {
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.slots.swap(a, b);
+    }
+
+    pub fn reverse(&mut self, mut low: usize, mut high: usize) {
+        while low < high {
+            self.swap(low, high);
+            low += 1;
+            high -= 1;
+        }
+    }
+
+    pub fn abx_index(&self, index: i32) -> usize {
         if index >= 0 {
-            index
+            index as usize
         } else {
-            index + (self.top as i32) + 1
+            let index = index + (self.top as i32) + 1;
+            assert!(index >= 0, "illegal negative index");
+            index as usize
         }
     }
 
     pub fn is_valid(&self, index: i32) -> bool {
-        let index = self.abx_index(index);
-        0 < index && index <= self.top as i32
+        index > 0 || index + (self.top as i32) + 1 > 0
     }
 
-    fn get(&self, index: i32) -> &Value {
+    pub fn get(&self, index: i32) -> &Value {
         let index = self.abx_index(index);
-        if 0 < index && index <= self.top as i32 {
-            return &self.slots[(index - 1) as usize];
+        if 0 < index && index <= self.top {
+            return &self.slots[index - 1];
         }
         &Value::None
     }
 
-    fn set(&mut self, index: i32, v: Value) {
+    pub fn set(&mut self, index: i32, v: Value) {
         let index = self.abx_index(index);
-        assert!(0 < index && index <= self.top as i32);
-        self.slots[(index - 1) as usize] = v
+        assert!(0 < index && index <= self.top);
+        self.slots[index - 1] = v
     }
 }
 
