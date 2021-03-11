@@ -34,7 +34,7 @@ impl State {
     }
 
     /// push value from constant table at index
-    #[warn(mutable_borrow_reservation_conflict)]
+    #[allow(mutable_borrow_reservation_conflict)]
     pub fn get_const(&mut self, index: usize) {
         let val = &self.proto.constants[index];
         self.push_value(val.clone());
@@ -133,6 +133,7 @@ impl State {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::reader::Reader;
     use crate::state::State;

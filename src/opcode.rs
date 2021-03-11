@@ -1,5 +1,6 @@
 use crate::instruction::Instruction;
 use crate::state::State;
+use crate::value;
 use crate::value::Value;
 
 #[derive(Eq, PartialEq)]
@@ -28,8 +29,44 @@ pub struct Code {
     exec: fn(Instruction, &mut State),
 }
 
+macro_rules! math1 {
+    ($op:tt) => {
+        |ins: Instruction, state: &mut State| {
+            let (a, b, _) = ins.abc();
+            state.push_index(b + 1);
+            let val = state.pop_value();
+            match $op val {
+                Ok(res) => {
+                    state.push_value(res);
+                    state.replace(a + 1);
+                },
+                Err(e) => panic!("{}", e),
+            }
+        }
+    };
+}
+
+macro_rules! math2 {
+    ($op:tt) => {
+        |ins: Instruction, state: &mut State| {
+            let (a, b, c) = ins.abc();
+            state.get_rk(b);
+            state.get_rk(c);
+            let vb = state.pop_value();
+            let va = state.pop_value();
+            match va $op vb {
+                Ok(res) => {
+                    state.push_value(res);
+                    state.replace(a + 1);
+                },
+                Err(e) => panic!("{}", e),
+            }
+        }
+    };
+}
+
 macro_rules! code {
-    ($test:expr, $seta:expr, $argb:ident, $argc:ident, $mode:ident, $name:expr, $exec:ident) => {
+    ($test:expr, $seta:expr, $argb:ident, $argc:ident, $mode:ident, $name:expr, $exec:expr) => {
         Code {
             test_flag: $test,
             seta_flag: $seta,
@@ -47,7 +84,7 @@ pub const ALL: &'static [Code] = &[
     /*    T  A  B  C  mode         name    */
     code!(0, 1, R, N, IABC /* */, "MOVE    ", move_), // R(A) := R(B)
     code!(0, 1, K, N, IABx /* */, "LOADK   ", load_const), // R(A) := Kst(Bx)
-    code!(0, 1, N, N, IABx /* */, "LOADKX  ", load_const_index), // R(A) := Kst(extra arg)
+    code!(0, 1, N, N, IABx /* */, "LOADKX  ", load_constx), // R(A) := Kst(extra arg)
     code!(0, 1, U, U, IABC /* */, "LOADBOOL", load_bool), // R(A) := (bool)B; if (C) pc++
     code!(0, 1, U, N, IABC /* */, "LOADNIL ", load_nil), // R(A), R(A+1), ..., R(A+B) := nil
     code!(0, 1, U, N, IABC /* */, "GETUPVAL", unimplement), // R(A) := UpValue[B]
@@ -58,20 +95,20 @@ pub const ALL: &'static [Code] = &[
     code!(0, 0, K, K, IABC /* */, "SETTABLE", unimplement), // R(A)[RK(B)] := RK(C)
     code!(0, 1, U, U, IABC /* */, "NEWTABLE", unimplement), // R(A) := {} (size = B,C)
     code!(0, 1, R, K, IABC /* */, "SELF    ", unimplement), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
-    code!(0, 1, K, K, IABC /* */, "ADD     ", unimplement), // R(A) := RK(B) + RK(C)
-    code!(0, 1, K, K, IABC /* */, "SUB     ", unimplement), // R(A) := RK(B) - RK(C)
-    code!(0, 1, K, K, IABC /* */, "MUL     ", unimplement), // R(A) := RK(B) * RK(C)
-    code!(0, 1, K, K, IABC /* */, "MOD     ", unimplement), // R(A) := RK(B) % RK(C)
-    code!(0, 1, K, K, IABC /* */, "POW     ", unimplement), // R(A) := RK(B) ^ RK(C)
-    code!(0, 1, K, K, IABC /* */, "DIV     ", unimplement), // R(A) := RK(B) / RK(C)
-    code!(0, 1, K, K, IABC /* */, "IDIV    ", unimplement), // R(A) := RK(B) // RK(C)
-    code!(0, 1, K, K, IABC /* */, "BAND    ", unimplement), // R(A) := RK(B) & RK(C)
-    code!(0, 1, K, K, IABC /* */, "BOR     ", unimplement), // R(A) := RK(B) | RK(C)
-    code!(0, 1, K, K, IABC /* */, "BXOR    ", unimplement), // R(A) := RK(B) ~ RK(C)
-    code!(0, 1, K, K, IABC /* */, "SHL     ", unimplement), // R(A) := RK(B) << RK(C)
-    code!(0, 1, K, K, IABC /* */, "SHR     ", unimplement), // R(A) := RK(B) >> RK(C)
-    code!(0, 1, R, N, IABC /* */, "UNM     ", unimplement), // R(A) := -R(B)
-    code!(0, 1, R, N, IABC /* */, "BNOT    ", unimplement), // R(A) := ~R(B)
+    code!(0, 1, K, K, IABC /* */, "ADD     ", math2!(+)), // R(A) := RK(B) + RK(C)
+    code!(0, 1, K, K, IABC /* */, "SUB     ", math2!(-)), // R(A) := RK(B) - RK(C)
+    code!(0, 1, K, K, IABC /* */, "MUL     ", math2!(*)), // R(A) := RK(B) * RK(C)
+    code!(0, 1, K, K, IABC /* */, "MOD     ", math2!(%)), // R(A) := RK(B) % RK(C)
+    code!(0, 1, K, K, IABC /* */, "POW     ", math2!(*)), // R(A) := RK(B) ^ RK(C) TODO: implement pow
+    code!(0, 1, K, K, IABC /* */, "DIV     ", math2!(/)), // R(A) := RK(B) / RK(C)
+    code!(0, 1, K, K, IABC /* */, "IDIV    ", math2!(/)), // R(A) := RK(B) // RK(C)
+    code!(0, 1, K, K, IABC /* */, "BAND    ", math2!(&)), // R(A) := RK(B) & RK(C)
+    code!(0, 1, K, K, IABC /* */, "BOR     ", math2!(|)), // R(A) := RK(B) | RK(C)
+    code!(0, 1, K, K, IABC /* */, "BXOR    ", math2!(^)), // R(A) := RK(B) ~ RK(C)
+    code!(0, 1, K, K, IABC /* */, "SHL     ", math2!(<<)), // R(A) := RK(B) << RK(C)
+    code!(0, 1, K, K, IABC /* */, "SHR     ", math2!(>>)), // R(A) := RK(B) >> RK(C)
+    code!(0, 1, R, N, IABC /* */, "UNM     ", math1!(-)), // R(A) := -R(B)
+    code!(0, 1, R, N, IABC /* */, "BNOT    ", math1!(!)), // R(A) := ~R(B)
     code!(0, 1, R, N, IABC /* */, "NOT     ", unimplement), // R(A) := not R(B)
     code!(0, 1, R, N, IABC /* */, "LEN     ", unimplement), // R(A) := length of R(B)
     code!(0, 1, R, R, IABC /* */, "CONCAT  ", unimplement), // R(A) := R(B).. ... ..R(C)
@@ -94,7 +131,7 @@ pub const ALL: &'static [Code] = &[
     code!(0, 0, U, U, IAx /*  */, "EXTRAARG", unimplement), // extra (larger) argument for previous opcode
 ];
 
-fn unimplement(ins: Instruction, state: &mut State) {
+fn unimplement(_: Instruction, _: &mut State) {
     unimplemented!();
 }
 
@@ -125,6 +162,7 @@ fn load_bool(ins: Instruction, state: &mut State) {
     }
 }
 
+/// load constant index from current instruction
 fn load_const(ins: Instruction, state: &mut State) {
     let (a, bx) = ins.abx();
     assert!(bx >= 0);
@@ -132,10 +170,11 @@ fn load_const(ins: Instruction, state: &mut State) {
     state.replace(a + 1);
 }
 
-fn load_const_index(ins: Instruction, state: &mut State) {
+/// load constant index from next instruction(`EXTRAARG`)
+fn load_constx(ins: Instruction, state: &mut State) {
     let (a, _) = ins.abx();
     let ax = state.fetch().ax();
     assert!(ax >= 0);
     state.get_const(ax as usize);
-    state.replace(a);
+    state.replace(a + 1);
 }
