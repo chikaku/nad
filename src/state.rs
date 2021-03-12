@@ -125,11 +125,46 @@ impl State {
         let n = self.top() as i32 - top;
 
         (n..0).for_each(|_| {
-            self.stack.push(Value::None);
+            self.stack.push(Value::Nil);
         });
         (0..n).for_each(|_| {
             self.stack.pop();
         });
+    }
+
+    #[allow(mutable_borrow_reservation_conflict)]
+    pub fn len(&mut self, index: i32) {
+        let val = self.stack.get(index);
+        if let Value::String(s) = val {
+            self.stack.push(Value::Integer(s.len() as i64))
+        } else {
+            panic!("type {} have no length", val.type_name())
+        }
+    }
+
+    pub fn concat(&mut self, n: usize) {
+        match n {
+            0 => self.stack.push(Value::String("".to_string())),
+            1 => {}
+            n => (1..n).for_each(|_| {
+                let s2 = self.stack.pop().into_string().unwrap();
+                let s1 = self.stack.pop().into_string().unwrap();
+                self.stack.push(Value::String(s1 + s2.as_str()));
+            }),
+        };
+    }
+
+    pub fn compare(&mut self, a: i32, b: i32, op: &'static str) -> bool {
+        let a = self.stack.get(a);
+        let b = self.stack.get(b);
+        match op {
+            "==" => a == b,
+            ">" => a > b,
+            "<" => a < b,
+            ">=" => a >= b,
+            "<=" => a <= b,
+            _ => panic!("unsupported compare operator"),
+        }
     }
 }
 
@@ -185,6 +220,6 @@ mod tests {
         (1..2).for_each(|index| state.push_value(Value::Integer(index)));
         state.set_top(2);
         assert_eq!(state.top(), 2);
-        assert_eq!(state.pop_value(), Value::None);
+        assert_eq!(state.pop_value(), Value::Nil);
     }
 }

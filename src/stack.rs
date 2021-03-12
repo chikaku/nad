@@ -9,7 +9,7 @@ impl Stack {
     pub fn new(size: usize) -> Stack {
         let mut slots = vec![];
         for _ in 0..size {
-            slots.push(Value::None)
+            slots.push(Value::Nil)
         }
         Stack { slots, top: 0 }
     }
@@ -21,7 +21,7 @@ impl Stack {
     pub fn check(&mut self, n: usize) {
         let free = self.slots.len() - self.top;
         for _ in free..n {
-            self.slots.push(Value::None)
+            self.slots.push(Value::Nil)
         }
     }
 
@@ -35,7 +35,7 @@ impl Stack {
         assert!(self.top > 0);
         self.top -= 1;
         let val = self.slots.remove(self.top);
-        self.slots.insert(self.top, Value::None);
+        self.slots.insert(self.top, Value::Nil);
         val
     }
 
@@ -76,7 +76,7 @@ impl Stack {
         if 0 < index && index <= self.top {
             return &self.slots[index - 1];
         }
-        &Value::None
+        &Value::_None
     }
 
     pub fn set(&mut self, index: i32, v: Value) {
@@ -110,7 +110,7 @@ mod tests {
         s.set(1, Value::Integer(2));
         assert_eq!(s.get(1), &Value::Integer(2));
 
-        assert_eq!(s.get(4), &Value::None);
+        assert_eq!(s.get(4), &Value::_None);
     }
 
     #[test]

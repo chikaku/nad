@@ -1,6 +1,5 @@
 use crate::instruction::Instruction;
 use crate::state::State;
-use crate::value;
 use crate::value::Value;
 
 #[derive(Eq, PartialEq)]
@@ -65,6 +64,20 @@ macro_rules! math2 {
     };
 }
 
+macro_rules! cmp {
+    ($op:tt) => {
+        |ins: Instruction, state: &mut State| {
+            let (a, b, c) = ins.abc();
+            state.get_rk(b);
+            state.get_rk(c);
+            if state.compare(-2, -1, "$op") != (a != 0) {
+                state.add_pc(1);
+            }
+            state.pop(2);
+        }
+    };
+}
+
 macro_rules! code {
     ($test:expr, $seta:expr, $argb:ident, $argc:ident, $mode:ident, $name:expr, $exec:expr) => {
         Code {
@@ -110,12 +123,12 @@ pub const ALL: &'static [Code] = &[
     code!(0, 1, R, N, IABC /* */, "UNM     ", math1!(-)), // R(A) := -R(B)
     code!(0, 1, R, N, IABC /* */, "BNOT    ", math1!(!)), // R(A) := ~R(B)
     code!(0, 1, R, N, IABC /* */, "NOT     ", unimplement), // R(A) := not R(B)
-    code!(0, 1, R, N, IABC /* */, "LEN     ", unimplement), // R(A) := length of R(B)
-    code!(0, 1, R, R, IABC /* */, "CONCAT  ", unimplement), // R(A) := R(B).. ... ..R(C)
+    code!(0, 1, R, N, IABC /* */, "LEN     ", len),       // R(A) := length of R(B)
+    code!(0, 1, R, R, IABC /* */, "CONCAT  ", concat),    // R(A) := R(B).. ... ..R(C)
     code!(0, 0, R, N, IAsBx /**/, "JMP     ", jmp /*   */), // pc+=sBx; if (A) close all upvalues >= R(A - 1)
-    code!(1, 0, K, K, IABC /* */, "EQ      ", unimplement), // if ((RK(B) == RK(C)) ~= A) then pc++
-    code!(1, 0, K, K, IABC /* */, "LT      ", unimplement), // if ((RK(B) <  RK(C)) ~= A) then pc++
-    code!(1, 0, K, K, IABC /* */, "LE      ", unimplement), // if ((RK(B) <= RK(C)) ~= A) then pc++
+    code!(1, 0, K, K, IABC /* */, "EQ      ", cmp!(==)),    // if ((RK(B) == RK(C)) ~= A) then pc++
+    code!(1, 0, K, K, IABC /* */, "LT      ", cmp!(<)),     // if ((RK(B) <  RK(C)) ~= A) then pc++
+    code!(1, 0, K, K, IABC /* */, "LE      ", cmp!(<=)),    // if ((RK(B) <= RK(C)) ~= A) then pc++
     code!(1, 0, N, U, IABC /* */, "TEST    ", unimplement), // if not (R(A) <=> C) then pc++
     code!(1, 1, R, U, IABC /* */, "TESTSET ", unimplement), // if (R(B) <=> C) then R(A) := R(B) else pc++
     code!(0, 1, U, U, IABC /* */, "CALL    ", unimplement), // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
@@ -176,5 +189,23 @@ fn load_constx(ins: Instruction, state: &mut State) {
     let ax = state.fetch().ax();
     assert!(ax >= 0);
     state.get_const(ax as usize);
+    state.replace(a + 1);
+}
+
+fn len(ins: Instruction, state: &mut State) {
+    let (a, b, _) = ins.abc();
+    state.len(b + 1);
+    state.replace(a + 1);
+}
+
+fn concat(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    let (a, b, c) = (a + 1, b + 1, c + 1);
+
+    assert!(c > b);
+    let size = (c - b + 1) as usize;
+    state.check_stack(size);
+    (b..=c).for_each(|i| state.push_index(i));
+    state.concat(size);
     state.replace(a + 1);
 }

@@ -1,7 +1,7 @@
+use std::cmp::Ordering;
 use std::fmt;
-use std::fmt::Formatter;
-use std::num::{ParseFloatError, ParseIntError};
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, MulAssign, Neg, Not, Rem, Shl, Shr, Sub};
+use std::num::ParseFloatError;
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 
 pub struct Upvalue {
     pub in_stack: u8,
@@ -21,9 +21,9 @@ pub const CONST_TAG_INT: u8 = 0x13;
 pub const CONST_TAG_SHORT_STR: u8 = 0x04;
 pub const CONST_TAG_LONG_STR: u8 = 0x14;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Clone)]
 pub enum Value {
-    None,
+    _None,
     Nil,
     Bool(bool),
     Integer(i64),
@@ -82,8 +82,8 @@ macro_rules! impl_op {
 impl_op!(Add, add, +);
 impl_op!(Sub, sub, -);
 impl_op!(Mul, mul, *);
-impl_opf!(Div, div, /);
 impl_op!(Rem, rem, %);
+impl_opf!(Div, div, /);
 impl_opb!(BitAnd, bitand, &);
 impl_opb!(BitOr, bitor, |);
 impl_opb!(BitXor, bitxor, ^);
@@ -114,13 +114,112 @@ impl Not for Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::None => unreachable!(),
-            Value::Nil => write!(f, "nil"),
+            Value::_None => write!(f, "None"),
+            Value::Nil => write!(f, "Nil"),
             Value::Bool(v) => write!(f, "{}", v),
             Value::Integer(v) => write!(f, "{}", v),
             Value::Float(v) => write!(f, "{}", v),
             Value::String(v) => write!(f, "\"{}\"", v),
         }
+    }
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl std::cmp::PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Value::_None => matches!(other, _None),
+            Value::Nil => matches!(other, Nil),
+            Value::Bool(a) => match other {
+                Value::Bool(b) => a == b,
+                _ => false,
+            },
+            &Value::Integer(i1) => match other {
+                &Value::Integer(i2) => i1 == i2,
+                &Value::Float(f2) => (i1 as f64) == f2,
+                _ => false,
+            },
+            &Value::Float(f1) => match other {
+                &Value::Integer(i2) => f1 == (i2 as f64),
+                &Value::Float(f2) => f1 == f2,
+                _ => false,
+            },
+            Value::String(s1) => match other {
+                Value::String(s2) => s1 == s2,
+                _ => false,
+            },
+        }
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
+    }
+}
+
+impl std::cmp::PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.eq(other) {
+            Some(Ordering::Equal)
+        } else if self.le(other) {
+            Some(Ordering::Less)
+        } else if self.gt(other) {
+            Some(Ordering::Greater)
+        } else {
+            None
+        }
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        match self {
+            &Value::Integer(i1) => match other {
+                &Value::Integer(i2) => i1 < i2,
+                &Value::Float(f2) => (i1 as f64) < f2,
+                _ => panic!("comparison error"),
+            },
+            &Value::Float(f1) => match other {
+                &Value::Float(f2) => f1 < f2,
+                &Value::Integer(i2) => f1 < (i2 as f64),
+                _ => panic!("comparison error"),
+            },
+            Value::String(s1) => match other {
+                Value::String(s2) => s1 < s2,
+                _ => panic!("comparison error"),
+            },
+            _ => panic!("comparison error"),
+        }
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        self.lt(other) || self.eq(other)
+    }
+
+    fn gt(&self, other: &Self) -> bool {
+        match self {
+            &Value::Integer(i1) => match other {
+                &Value::Integer(i2) => i1 > i2,
+                &Value::Float(f2) => (i1 as f64) > f2,
+                _ => panic!("comparison error"),
+            },
+            &Value::Float(f1) => match other {
+                &Value::Float(f2) => f1 > f2,
+                &Value::Integer(i2) => f1 > (i2 as f64),
+                _ => panic!("comparison error"),
+            },
+            Value::String(s1) => match other {
+                Value::String(s2) => s1 > s2,
+                _ => panic!("comparison error"),
+            },
+            _ => panic!("comparison error"),
+        }
+    }
+
+    fn ge(&self, other: &Self) -> bool {
+        self.gt(other) || self.eq(other)
     }
 }
 
@@ -137,6 +236,12 @@ impl fmt::Display for IntoError {
             IntoError::FloatToInteger => write!(f, "{}", "float convert to int error"),
             IntoError::TypeUnsupported => write!(f, "{}", "unsupported type conversion"),
         }
+    }
+}
+
+impl fmt::Debug for IntoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -168,15 +273,39 @@ impl Value {
             _ => Err(IntoError::TypeUnsupported),
         }
     }
+
+    pub fn into_string(self) -> Result<String, IntoError> {
+        match self {
+            Value::Float(f) => Ok(f.to_string()),
+            Value::Integer(i) => Ok(i.to_string()),
+            Value::String(s) => Ok(s),
+            _ => Err(IntoError::TypeUnsupported),
+        }
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Value::_None => "None",
+            Value::Nil => "Nil",
+            Value::Integer(_) => "Integer",
+            Value::Float(_) => "Float",
+            Value::String(_) => "String",
+            Value::Bool(_) => "Boolean",
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::value::float_to_integer;
+    use crate::value::{float_to_integer, Value};
 
     #[test]
     fn test_float_to_integer() {
         assert!(float_to_integer(f64::MAX).is_err());
         assert_eq!(float_to_integer(i64::MAX as f64).ok(), Some(i64::MAX));
+
+        let v1 = Value::Float(1.0);
+        let v2 = Value::Integer(2);
+        assert!(v1 < v2);
     }
 }
