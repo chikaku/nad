@@ -122,15 +122,15 @@ pub const ALL: &'static [Code] = &[
     code!(0, 1, K, K, IABC /* */, "SHR     ", math2!(>>)), // R(A) := RK(B) >> RK(C)
     code!(0, 1, R, N, IABC /* */, "UNM     ", math1!(-)), // R(A) := -R(B)
     code!(0, 1, R, N, IABC /* */, "BNOT    ", math1!(!)), // R(A) := ~R(B)
-    code!(0, 1, R, N, IABC /* */, "NOT     ", unimplement), // R(A) := not R(B)
+    code!(0, 1, R, N, IABC /* */, "NOT     ", not),       // R(A) := not R(B)
     code!(0, 1, R, N, IABC /* */, "LEN     ", len),       // R(A) := length of R(B)
     code!(0, 1, R, R, IABC /* */, "CONCAT  ", concat),    // R(A) := R(B).. ... ..R(C)
     code!(0, 0, R, N, IAsBx /**/, "JMP     ", jmp /*   */), // pc+=sBx; if (A) close all upvalues >= R(A - 1)
     code!(1, 0, K, K, IABC /* */, "EQ      ", cmp!(==)),    // if ((RK(B) == RK(C)) ~= A) then pc++
     code!(1, 0, K, K, IABC /* */, "LT      ", cmp!(<)),     // if ((RK(B) <  RK(C)) ~= A) then pc++
     code!(1, 0, K, K, IABC /* */, "LE      ", cmp!(<=)),    // if ((RK(B) <= RK(C)) ~= A) then pc++
-    code!(1, 0, N, U, IABC /* */, "TEST    ", unimplement), // if not (R(A) <=> C) then pc++
-    code!(1, 1, R, U, IABC /* */, "TESTSET ", unimplement), // if (R(B) <=> C) then R(A) := R(B) else pc++
+    code!(1, 0, N, U, IABC /* */, "TEST    ", test),        // if not (R(A) <=> C) then pc++
+    code!(1, 1, R, U, IABC /* */, "TESTSET ", test_set), // if (R(B) <=> C) then R(A) := R(B) else pc++
     code!(0, 1, U, U, IABC /* */, "CALL    ", unimplement), // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
     code!(0, 1, U, U, IABC /* */, "TAILCALL", unimplement), // return R(A)(R(A+1), ... ,R(A+B-1))
     code!(0, 0, U, N, IABC /* */, "RETURN  ", unimplement), // return R(A), ... ,R(A+B-2)
@@ -208,4 +208,62 @@ fn concat(ins: Instruction, state: &mut State) {
     (b..=c).for_each(|i| state.push_index(i));
     state.concat(size);
     state.replace(a + 1);
+}
+
+fn not(ins: Instruction, state: &mut State) {
+    let (a, b, _) = ins.abc();
+    state.push_value(Value::Bool(!state.to_boolean(b + 1)));
+    state.replace(a + 1);
+}
+
+fn test_set(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    if state.to_boolean(b + 1) == (c != 0) {
+        state.copy(b + 1, a + 1);
+    } else {
+        state.add_pc(1);
+    }
+}
+
+fn test(ins: Instruction, state: &mut State) {
+    let (a, _, c) = ins.abc();
+    if state.to_boolean(a + 1) != (c != 0) {
+        state.add_pc(1);
+    }
+}
+
+fn for_prep(ins: Instruction, state: &mut State) {
+    let (a, sbx) = ins.asbx();
+    let a = a + 1;
+
+    state.push_index(2);
+    state.push_index(a + 2);
+
+    let vb = state.pop_value();
+    let va = state.pop_value();
+    state.push_value((va - vb).unwrap());
+    state.replace(a);
+
+    state.add_pc(sbx);
+}
+
+fn for_loop(ins: Instruction, state: &mut State) {
+    let (a, sbx) = ins.asbx();
+    let a = a + 1;
+
+    state.push_index(a + 2);
+    state.push_index(2);
+
+    let vb = state.pop_value();
+    let va = state.pop_value();
+    state.push_value((va + vb).unwrap());
+    state.replace(a);
+
+    let postive_step = state.to_number(a + 2) > 0.0;
+    if (postive_step && state.compare(a, a + 1, ">"))
+        || (!postive_step && state.compare(a + 1, a, ">"))
+    {
+        state.add_pc(sbx);
+        state.copy(a, a + 3);
+    }
 }

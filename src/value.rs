@@ -37,8 +37,8 @@ macro_rules! impl_opf {
             type Output = Result<Value, IntoError>;
 
             fn $m(self, rhs: Self) -> Self::Output {
-                let f1 = self.into_float()?;
-                let f2 = rhs.into_float()?;
+                let f1 = self.as_float()?;
+                let f2 = rhs.as_float()?;
                 Ok(Value::Float(f1 $op f2))
             }
         }
@@ -51,8 +51,8 @@ macro_rules! impl_opb {
             type Output = Result<Value, IntoError>;
 
             fn $m(self, rhs: Self) -> Self::Output {
-                let v1 = self.into_integer()?;
-                let v2 = rhs.into_integer()?;
+                let v1 = self.as_integer()?;
+                let v2 = rhs.as_integer()?;
                 Ok(Value::Integer(v1 $op v2))
             }
         }
@@ -71,8 +71,8 @@ macro_rules! impl_op {
                     }
                 }
 
-                let f1 = self.into_float()?;
-                let f2 = rhs.into_float()?;
+                let f1 = self.as_float()?;
+                let f2 = rhs.as_float()?;
                 Ok(Value::Float(f1 $op f2))
             }
         }
@@ -106,7 +106,7 @@ impl Not for Value {
     type Output = Result<Value, IntoError>;
 
     fn not(self) -> Self::Output {
-        let v1 = self.into_integer()?;
+        let v1 = self.as_integer()?;
         Ok(Value::Integer(!v1))
     }
 }
@@ -253,10 +253,10 @@ fn float_to_integer(n: f64) -> Result<i64, IntoError> {
 }
 
 impl Value {
-    pub fn into_integer(self) -> Result<i64, IntoError> {
+    pub fn as_integer(&self) -> Result<i64, IntoError> {
         match self {
-            Value::Integer(v) => Ok(v),
-            Value::Float(f) => float_to_integer(f),
+            &Value::Integer(v) => Ok(v),
+            &Value::Float(f) => float_to_integer(f),
             Value::String(s) => s
                 .parse::<f64>()
                 .map_err(IntoError::Float)
@@ -265,10 +265,10 @@ impl Value {
         }
     }
 
-    pub fn into_float(self) -> Result<f64, IntoError> {
+    pub fn as_float(&self) -> Result<f64, IntoError> {
         match self {
-            Value::Float(f) => Ok(f),
-            Value::Integer(v) => Ok(v as f64),
+            &Value::Float(f) => Ok(f),
+            &Value::Integer(v) => Ok(v as f64),
             Value::String(s) => s.parse::<f64>().map_err(IntoError::Float),
             _ => Err(IntoError::TypeUnsupported),
         }
@@ -280,6 +280,14 @@ impl Value {
             Value::Integer(i) => Ok(i.to_string()),
             Value::String(s) => Ok(s),
             _ => Err(IntoError::TypeUnsupported),
+        }
+    }
+
+    pub fn as_boolean(&self) -> bool {
+        match self {
+            &Value::Nil => false,
+            &Value::Bool(v) => v,
+            _ => true,
         }
     }
 

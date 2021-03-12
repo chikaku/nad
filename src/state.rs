@@ -166,6 +166,14 @@ impl State {
             _ => panic!("unsupported compare operator"),
         }
     }
+
+    pub fn to_boolean(&self, index: i32) -> bool {
+        self.stack.get(index).as_boolean()
+    }
+
+    pub fn to_number(&self, index: i32) -> f64 {
+        self.stack.get(index).as_float().unwrap()
+    }
 }
 
 #[cfg(test)]
