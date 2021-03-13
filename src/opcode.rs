@@ -1,6 +1,6 @@
 use crate::instruction::Instruction;
 use crate::state::State;
-use crate::value::Value;
+use crate::value::{fb2int, Value};
 
 #[derive(Eq, PartialEq)]
 pub enum Mode {
@@ -102,11 +102,11 @@ pub const ALL: &'static [Code] = &[
     code!(0, 1, U, N, IABC /* */, "LOADNIL ", load_nil), // R(A), R(A+1), ..., R(A+B) := nil
     code!(0, 1, U, N, IABC /* */, "GETUPVAL", unimplement), // R(A) := UpValue[B]
     code!(0, 1, U, K, IABC /* */, "GETTABUP", unimplement), // R(A) := UpValue[B][RK(C)]
-    code!(0, 1, R, K, IABC /* */, "GETTABLE", unimplement), // R(A) := R(B)[RK(C)]
+    code!(0, 1, R, K, IABC /* */, "GETTABLE", get_table), // R(A) := R(B)[RK(C)]
     code!(0, 0, K, K, IABC /* */, "SETTABUP", unimplement), // UpValue[A][RK(B)] := RK(C)
     code!(0, 0, U, N, IABC /* */, "SETUPVAL", unimplement), // UpValue[B] := R(A)
-    code!(0, 0, K, K, IABC /* */, "SETTABLE", unimplement), // R(A)[RK(B)] := RK(C)
-    code!(0, 1, U, U, IABC /* */, "NEWTABLE", unimplement), // R(A) := {} (size = B,C)
+    code!(0, 0, K, K, IABC /* */, "SETTABLE", set_table), // R(A)[RK(B)] := RK(C)
+    code!(0, 1, U, U, IABC /* */, "NEWTABLE", new_table), // R(A) := {} (size = B,C)
     code!(0, 1, R, K, IABC /* */, "SELF    ", unimplement), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
     code!(0, 1, K, K, IABC /* */, "ADD     ", math2!(+)), // R(A) := RK(B) + RK(C)
     code!(0, 1, K, K, IABC /* */, "SUB     ", math2!(-)), // R(A) := RK(B) - RK(C)
@@ -138,7 +138,7 @@ pub const ALL: &'static [Code] = &[
     code!(0, 1, R, N, IAsBx /**/, "FORPREP ", unimplement), // R(A)-=R(A+2); pc+=sBx
     code!(0, 0, N, U, IABC /* */, "TFORCALL", unimplement), // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
     code!(0, 1, R, N, IAsBx /**/, "TFORLOOP", unimplement), // if R(A+1) ~= nil then { R(A)=R(A+1); pc += sBx }
-    code!(0, 0, U, U, IABC /* */, "SETLIST ", unimplement), // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    code!(0, 0, U, U, IABC /* */, "SETLIST ", set_list), // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
     code!(0, 1, U, N, IABx /* */, "CLOSURE ", unimplement), // R(A) := closure(KPROTO[Bx])
     code!(0, 1, U, N, IABC /* */, "VARARG  ", unimplement), // R(A), R(A+1), ..., R(A+B-2) = vararg
     code!(0, 0, U, U, IAx /*  */, "EXTRAARG", unimplement), // extra (larger) argument for previous opcode
@@ -266,4 +266,37 @@ fn for_loop(ins: Instruction, state: &mut State) {
         state.add_pc(sbx);
         state.copy(a, a + 3);
     }
+}
+
+fn new_table(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    let size = if b > 0 { fb2int(b) } else { fb2int(c) };
+    state.map_new(size as usize);
+    state.replace(a + 1);
+}
+
+fn get_table(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    state.get_rk(c);
+    state.map_get_top(b + 1);
+    state.replace(a + 1);
+}
+
+fn set_table(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    state.get_rk(b);
+    state.get_rk(c);
+    state.map_set_top(a + 1);
+}
+
+const LIST_BATCH_NUM: i64 = 50;
+fn set_list(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    let num = if c > 0 { c - 1 } else { state.fetch().ax() } as i64;
+    let mut index = num * LIST_BATCH_NUM;
+    (1..=b).for_each(|n| {
+        index += 1;
+        state.push_index(a + 1 + n);
+        state.map_set_idx(a + 1, index);
+    })
 }

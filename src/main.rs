@@ -1,6 +1,7 @@
 use std::env::args;
 
 mod chunk;
+mod collection;
 mod instruction;
 mod opcode;
 mod prototype;

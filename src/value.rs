@@ -1,7 +1,11 @@
 use std::cmp::Ordering;
+
 use std::fmt;
 use std::num::ParseFloatError;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
+
+use crate::collection::Map;
+use std::cell::RefCell;
 
 pub struct Upvalue {
     pub in_stack: u8,
@@ -29,6 +33,7 @@ pub enum Value {
     Integer(i64),
     Float(f64),
     String(String),
+    Map(RefCell<Map>),
 }
 
 macro_rules! impl_opf {
@@ -90,7 +95,7 @@ impl_opb!(BitXor, bitxor, ^);
 impl_opb!(Shl, shl, <<);
 impl_opb!(Shr, shr, >>);
 
-impl Neg for Value {
+impl<'m> Neg for Value {
     type Output = Result<Value, IntoError>;
 
     fn neg(self) -> Self::Output {
@@ -102,7 +107,7 @@ impl Neg for Value {
     }
 }
 
-impl Not for Value {
+impl<'m> Not for Value {
     type Output = Result<Value, IntoError>;
 
     fn not(self) -> Self::Output {
@@ -120,6 +125,7 @@ impl fmt::Display for Value {
             Value::Integer(v) => write!(f, "{}", v),
             Value::Float(v) => write!(f, "{}", v),
             Value::String(v) => write!(f, "\"{}\"", v),
+            Value::Map(m) => write!(f, "{}", m.borrow()),
         }
     }
 }
@@ -129,6 +135,8 @@ impl fmt::Debug for Value {
         write!(f, "{}", self)
     }
 }
+
+impl Eq for Value {}
 
 impl std::cmp::PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
@@ -151,6 +159,10 @@ impl std::cmp::PartialEq for Value {
             },
             Value::String(s1) => match other {
                 Value::String(s2) => s1 == s2,
+                _ => false,
+            },
+            Value::Map(m1) => match other {
+                Value::Map(m2) => m1 == m2,
                 _ => false,
             },
         }
@@ -252,6 +264,38 @@ fn float_to_integer(n: f64) -> Result<i64, IntoError> {
     }
 }
 
+/// floating point byte
+/// EEEEEXXX
+/// IF (EEEEE == 0) THEN XXX
+/// ELSE (1XXX) * 2 ^ (EEEEE - 1)
+pub fn int2fb(mut x: i32) -> i32 {
+    let mut e = 0;
+    if x < 8 {
+        return x;
+    }
+
+    while x >= (8 << 4) {
+        x = (x + 0xF) >> 4;
+        e += 4;
+    }
+
+    while x >= (8 << 1) {
+        x = (x + 1) >> 1;
+        e += 1;
+    }
+
+    (e + 1) << 3 | (x - 8)
+}
+
+/// int2fb reverse
+pub fn fb2int(x: i32) -> i32 {
+    if x < 8 {
+        x
+    } else {
+        ((x & 7) + 8) << ((x >> 3) - 1)
+    }
+}
+
 impl Value {
     pub fn as_integer(&self) -> Result<i64, IntoError> {
         match self {
@@ -299,6 +343,7 @@ impl Value {
             Value::Float(_) => "Float",
             Value::String(_) => "String",
             Value::Bool(_) => "Boolean",
+            Value::Map(_) => "Map",
         }
     }
 }
