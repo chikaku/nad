@@ -1,12 +1,21 @@
-use crate::prototype::Prototype;
+use std::path::Path;
 
-struct Chunk {
-    header: Header,
-    upvalue_size: u8,
-    prototype: Prototype,
+use crate::prototype::Prototype;
+use crate::reader::Reader;
+
+pub struct Chunk {
+    pub header: Header,
+    pub upvalue_size: u8,
+    pub prototype: Prototype,
 }
 
-#[derive(PartialEq)]
+impl Chunk {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
+        Reader::from_file(path).into_chunk()
+    }
+}
+
+#[derive(PartialEq, Copy, Clone)]
 pub struct Header {
     pub signature: [u8; 4],
     pub version: u8,

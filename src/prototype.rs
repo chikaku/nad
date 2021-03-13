@@ -2,6 +2,7 @@ use crate::instruction::Instruction;
 use crate::value::{LocalValue, Upvalue, Value};
 use ansi_term::Color::Green;
 
+#[derive(Default)]
 pub struct Prototype {
     pub source: String,
     pub def_start_line: u32,
@@ -19,6 +20,10 @@ pub struct Prototype {
 }
 
 impl Prototype {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
     fn print_header(&self) {
         let func_type = match self.def_start_line > 0 {
             true => "function",

@@ -1,44 +1,47 @@
+use crate::chunk::Chunk;
 use crate::collection::Map;
 use crate::instruction::Instruction;
-use crate::prototype::Prototype;
 use crate::stack::Stack;
 use crate::value::Value;
+
 use std::cell::RefCell;
+use std::collections::LinkedList;
 
 pub struct State {
-    stack: Stack,
-    proto: Prototype,
-    pc: usize,
+    chain: LinkedList<Stack>, // call stack
 }
 
 impl State {
-    pub fn new(size: usize, proto: Prototype) -> State {
-        State {
-            stack: Stack::new(size),
-            proto,
-            pc: 0,
-        }
+    pub fn new(ch: Chunk) -> State {
+        let mut chain = LinkedList::new();
+        chain.push_back(Stack::new(0, ch.prototype));
+        State { chain }
+    }
+
+    pub fn from_stack(stack: Stack) -> State {
+        let mut chain = LinkedList::new();
+        chain.push_back(stack);
+        State { chain }
     }
 }
 
 impl State {
     pub fn pc(&self) -> usize {
-        self.pc
+        self.chain.front().unwrap().pc()
     }
 
     pub fn add_pc(&mut self, n: i32) {
-        self.pc = (self.pc as i32 + n) as usize
+        self.chain.front_mut().unwrap().add_pc(n)
     }
 
     pub fn fetch(&mut self) -> Instruction {
-        self.pc += 1;
-        self.proto.code[self.pc - 1]
+        self.chain.front().unwrap().fetch()
     }
 
     /// push value from constant table at index
     #[allow(mutable_borrow_reservation_conflict)]
     pub fn get_const(&mut self, index: usize) {
-        let val = &self.proto.constants[index];
+        let val = &self.chain.front().unwrap().func.proto.constants[index];
         self.push_value(val.clone());
     }
 
@@ -56,47 +59,49 @@ impl State {
 
 impl State {
     pub fn top(&self) -> usize {
-        self.stack.top()
+        self.chain.front().unwrap().top()
     }
 
     pub fn abs_index(&self, index: i32) -> usize {
-        self.stack.abx_index(index)
+        self.chain.front().unwrap().abx_index(index)
     }
 
     pub fn check_stack(&mut self, n: usize) {
-        self.stack.check(n)
+        self.chain.front_mut().unwrap().check(n);
     }
 
     pub fn pop(&mut self, n: usize) {
         for _ in 0..n {
-            self.stack.pop();
+            self.chain.front_mut().unwrap().pop();
         }
     }
 
     pub fn pop_value(&mut self) -> Value {
-        self.stack.pop()
+        self.chain.front_mut().unwrap().pop()
     }
 
-    #[allow(mutable_borrow_reservation_conflict)]
     pub fn copy(&mut self, from: i32, to: i32) {
-        let val = self.stack.get(from);
-        self.stack.set(to, val.clone());
+        let stack = self.chain.front_mut().unwrap();
+        let val = stack.get(from).clone();
+        stack.set(to, val);
     }
 
-    #[allow(mutable_borrow_reservation_conflict)]
     pub fn push_index(&mut self, index: i32) {
-        let val = self.stack.get(index);
-        self.stack.push(val.clone());
+        let stack = self.chain.front_mut().unwrap();
+        let val = stack.get(index).clone();
+        stack.push(val);
     }
 
     pub fn push_value(&mut self, val: Value) {
-        self.stack.push(val)
+        let stack = self.chain.front_mut().unwrap();
+        stack.push(val)
     }
 
     /// pop value set to index
     pub fn replace(&mut self, index: i32) {
-        let val = self.stack.pop();
-        self.stack.set(index, val);
+        let stack = self.chain.front_mut().unwrap();
+        let val = stack.pop();
+        stack.set(index, val);
     }
 
     pub fn rorate(&mut self, index: i32, n: i32) {
@@ -108,9 +113,10 @@ impl State {
             (low as i32 - n - 1) as usize
         };
 
-        self.stack.reverse(low, index);
-        self.stack.reverse(index + 1, high);
-        self.stack.reverse(low, high);
+        let stack = self.chain.front_mut().unwrap();
+        stack.reverse(low, index);
+        stack.reverse(index + 1, high);
+        stack.reverse(low, high);
     }
 
     pub fn insert(&mut self, index: i32) {
@@ -126,42 +132,46 @@ impl State {
         let top = self.abs_index(index) as i32;
         let n = self.top() as i32 - top;
 
+        let stack = self.chain.front_mut().unwrap();
         (n..0).for_each(|_| {
-            self.stack.push(Value::Nil);
+            stack.push(Value::Nil);
         });
         (0..n).for_each(|_| {
-            self.stack.pop();
+            stack.pop();
         });
     }
 
-    #[allow(mutable_borrow_reservation_conflict)]
     pub fn len(&mut self, index: i32) {
-        let val = self.stack.get(index);
+        let stack = self.chain.front_mut().unwrap();
+        let val = stack.get(index);
         if let Value::String(s) = val {
-            self.stack.push(Value::Integer(s.len() as i64))
+            let len = s.len() as i64;
+            stack.push(Value::Integer(len));
         } else if let Value::Map(m) = val {
             let len = Value::Integer(m.borrow().len() as i64);
-            self.stack.push(len);
+            stack.push(len);
         } else {
             panic!("type {} have no length", val.type_name())
         }
     }
 
     pub fn concat(&mut self, n: usize) {
+        let stack = self.chain.front_mut().unwrap();
         match n {
-            0 => self.stack.push(Value::String("".to_string())),
+            0 => stack.push(Value::String("".to_string())),
             1 => {}
             n => (1..n).for_each(|_| {
-                let s2 = self.stack.pop().into_string().unwrap();
-                let s1 = self.stack.pop().into_string().unwrap();
-                self.stack.push(Value::String(s1 + s2.as_str()));
+                let s2 = stack.pop().into_string().unwrap();
+                let s1 = stack.pop().into_string().unwrap();
+                stack.push(Value::String(s1 + s2.as_str()));
             }),
         };
     }
 
     pub fn compare(&mut self, a: i32, b: i32, op: &'static str) -> bool {
-        let a = self.stack.get(a);
-        let b = self.stack.get(b);
+        let stack = self.chain.front().unwrap();
+        let a = stack.get(a);
+        let b = stack.get(b);
         match op {
             "==" => a == b,
             ">" => a > b,
@@ -173,11 +183,11 @@ impl State {
     }
 
     pub fn to_boolean(&self, index: i32) -> bool {
-        self.stack.get(index).as_boolean()
+        self.chain.front().unwrap().get(index).as_boolean()
     }
 
     pub fn to_number(&self, index: i32) -> f64 {
-        self.stack.get(index).as_float().unwrap()
+        self.chain.front().unwrap().get(index).as_float().unwrap()
     }
 }
 
@@ -188,9 +198,10 @@ impl State {
     }
 
     fn map_get(&mut self, index: i32, key: &Value) {
-        if let Value::Map(m) = self.stack.get(index) {
+        let stack = self.chain.front_mut().unwrap();
+        if let Value::Map(m) = stack.get(index) {
             let val = m.borrow().get(key).clone();
-            self.stack.push(val);
+            stack.push(val);
         } else {
             panic!("not a Map");
         }
@@ -201,7 +212,7 @@ impl State {
         // so pop key first then get map from stack at index
         // we must get absolute index first, because pop will change negative index
         let index = self.abs_index(index);
-        let key = self.stack.pop();
+        let key = self.chain.front_mut().unwrap().pop();
 
         self.map_get(index as i32, &key);
     }
@@ -211,7 +222,8 @@ impl State {
     }
 
     fn map_set(&mut self, index: usize, key: Value, val: Value) {
-        if let Value::Map(m) = self.stack.get(index as i32) {
+        let stack = self.chain.front().unwrap();
+        if let Value::Map(m) = stack.get(index as i32) {
             m.borrow_mut().put(key, val);
         } else {
             panic!("not a Map");
@@ -221,31 +233,32 @@ impl State {
     pub fn map_set_top(&mut self, index: i32) {
         let index = self.abs_index(index);
         assert!(index <= self.top() - 2);
-        let val = self.stack.pop();
-        let key = self.stack.pop();
+        let stack = self.chain.front_mut().unwrap();
+        let val = stack.pop();
+        let key = stack.pop();
         self.map_set(index, key, val);
     }
 
     pub fn map_set_idx(&mut self, index: i32, key: i64) {
         let index = self.abs_index(index);
         assert!(index <= self.top() - 2);
+        let stack = self.chain.front_mut().unwrap();
+        let val = stack.pop();
         let key = Value::Integer(key);
-        let val = self.stack.pop();
         self.map_set(index, key, val);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::reader::Reader;
+    use crate::chunk::Chunk;
+    use crate::prototype::Prototype;
+    use crate::stack::Stack;
     use crate::state::State;
     use crate::value::Value;
 
     fn new_state() -> State {
-        State::new(
-            10,
-            Reader::from_file("./luacode/hello_world.luac").prototype(),
-        )
+        State::from_stack(Stack::new(20, Prototype::empty()))
     }
 
     #[test]

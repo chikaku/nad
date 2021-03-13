@@ -1,17 +1,39 @@
+use crate::func::Func;
+use crate::instruction::Instruction;
+use crate::prototype::Prototype;
 use crate::value::Value;
+use std::rc::Rc;
 
 pub struct Stack {
-    slots: Vec<Value>,
+    pc: usize,
     top: usize,
+    slots: Vec<Value>,
+    varargs: Vec<Value>,
+    pub func: Func,
 }
 
 impl Stack {
-    pub fn new(size: usize) -> Stack {
-        let mut slots = vec![];
-        for _ in 0..size {
-            slots.push(Value::Nil)
+    pub fn new(size: usize, proto: Prototype) -> Stack {
+        Stack {
+            slots: vec![Value::Nil; size],
+            top: 0,
+            varargs: vec![],
+            pc: 0,
+            func: Func::new(Rc::new(proto)),
         }
-        Stack { slots, top: 0 }
+    }
+
+    pub fn pc(&self) -> usize {
+        self.pc
+    }
+
+    pub fn add_pc(&mut self, n: i32) {
+        assert!(self.pc as i32 + n >= 0);
+        self.pc = (self.pc as i32 + n) as usize;
+    }
+
+    pub fn fetch(&self) -> Instruction {
+        self.func.proto.code[self.pc]
     }
 
     pub fn top(&self) -> usize {
@@ -88,12 +110,13 @@ impl Stack {
 
 #[cfg(test)]
 mod tests {
+    use crate::prototype::Prototype;
     use crate::stack::Stack;
     use crate::value::Value;
 
     #[test]
     fn test_stack() {
-        let mut s = Stack::new(2);
+        let mut s = Stack::new(2, Prototype::empty());
         assert!(!s.is_valid(1));
         s.push(Value::String("123".to_string()));
         assert!(s.is_valid(1));
@@ -116,7 +139,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_push() {
-        let mut s = Stack::new(1);
+        let mut s = Stack::new(1, Prototype::empty());
         s.push(Value::Integer(1));
         s.push(Value::Integer(1));
     }

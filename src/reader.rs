@@ -4,6 +4,7 @@ use std::io::Read;
 use std::ops::Add;
 use std::path::Path;
 
+use crate::chunk::{Chunk, Header};
 use crate::instruction::Instruction;
 use crate::prototype::Prototype;
 use crate::value::{LocalValue, Upvalue, Value};
@@ -89,7 +90,7 @@ impl<T: std::io::Read> Reader<T> {
         unsafe { String::from_utf8_unchecked(buffer) }
     }
 
-    pub fn check_header(&mut self) {
+    pub fn check_header(&mut self) -> Header {
         use crate::chunk::LUAC_HEADER;
         let h = LUAC_HEADER;
 
@@ -104,6 +105,8 @@ impl<T: std::io::Read> Reader<T> {
         assert_eq!(self.read_byte(), h.luanum_size, "lua number size mismatch");
         assert_eq!(self.read_luaint(), h.luac_int, "endianness mismatch");
         assert_eq!(self.read_luanum(), h.luac_num, "float format mismatch");
+
+        h.clone()
     }
 
     fn read_code(&mut self) -> Vec<Instruction> {
@@ -218,6 +221,14 @@ impl<T: std::io::Read> Reader<T> {
         self.read_prototype(self.file_name.clone().as_str())
     }
 
+    pub fn into_chunk(mut self) -> Chunk {
+        Chunk {
+            header: self.check_header(),
+            upvalue_size: self.read_byte(),
+            prototype: self.read_prototype(self.file_name.clone().as_str()),
+        }
+    }
+
     pub fn dump_proto(&mut self) {
         self.prototype().dump();
     }
@@ -253,7 +264,9 @@ mod tests {
 
     #[test]
     fn check_header() {
-        iter_luac(|path| Reader::from_file(path).check_header());
+        iter_luac(|path| {
+            Reader::from_file(path).check_header();
+        });
     }
 
     #[test]
