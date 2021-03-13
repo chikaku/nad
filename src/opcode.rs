@@ -1,6 +1,7 @@
 use crate::instruction::Instruction;
 use crate::state::State;
 use crate::value::{fb2int, Value};
+use std::os::macos::raw::stat;
 
 #[derive(Eq, PartialEq)]
 pub enum Mode {
@@ -25,7 +26,7 @@ pub struct Code {
     pub argc_mode: ArgType,
     pub op_mode: Mode,
     pub name: &'static str,
-    exec: fn(Instruction, &mut State),
+    pub exec: fn(Instruction, &mut State),
 }
 
 macro_rules! math1 {
@@ -93,6 +94,9 @@ macro_rules! code {
     };
 }
 
+pub const RET: u32 = 39;
+
+/// copy from [luago-book](https://github.com/zxh0/luago-book/blob/master/code/go/ch03/src/luago/vm/opcodes.go)
 pub const ALL: &'static [Code] = &[
     /*    T  A  B  C  mode         name    */
     code!(0, 1, R, N, IABC /* */, "MOVE    ", move_), // R(A) := R(B)
@@ -107,7 +111,7 @@ pub const ALL: &'static [Code] = &[
     code!(0, 0, U, N, IABC /* */, "SETUPVAL", unimplement), // UpValue[B] := R(A)
     code!(0, 0, K, K, IABC /* */, "SETTABLE", set_table), // R(A)[RK(B)] := RK(C)
     code!(0, 1, U, U, IABC /* */, "NEWTABLE", new_table), // R(A) := {} (size = B,C)
-    code!(0, 1, R, K, IABC /* */, "SELF    ", unimplement), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
+    code!(0, 1, R, K, IABC /* */, "SELF    ", self_), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
     code!(0, 1, K, K, IABC /* */, "ADD     ", math2!(+)), // R(A) := RK(B) + RK(C)
     code!(0, 1, K, K, IABC /* */, "SUB     ", math2!(-)), // R(A) := RK(B) - RK(C)
     code!(0, 1, K, K, IABC /* */, "MUL     ", math2!(*)), // R(A) := RK(B) * RK(C)
@@ -131,16 +135,16 @@ pub const ALL: &'static [Code] = &[
     code!(1, 0, K, K, IABC /* */, "LE      ", cmp!(<=)),    // if ((RK(B) <= RK(C)) ~= A) then pc++
     code!(1, 0, N, U, IABC /* */, "TEST    ", test),        // if not (R(A) <=> C) then pc++
     code!(1, 1, R, U, IABC /* */, "TESTSET ", test_set), // if (R(B) <=> C) then R(A) := R(B) else pc++
-    code!(0, 1, U, U, IABC /* */, "CALL    ", unimplement), // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+    code!(0, 1, U, U, IABC /* */, "CALL    ", call), // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
     code!(0, 1, U, U, IABC /* */, "TAILCALL", unimplement), // return R(A)(R(A+1), ... ,R(A+B-1))
-    code!(0, 0, U, N, IABC /* */, "RETURN  ", unimplement), // return R(A), ... ,R(A+B-2)
+    code!(0, 0, U, N, IABC /* */, "RETURN  ", return_), // return R(A), ... ,R(A+B-2)
     code!(0, 1, R, N, IAsBx /**/, "FORLOOP ", unimplement), // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
     code!(0, 1, R, N, IAsBx /**/, "FORPREP ", unimplement), // R(A)-=R(A+2); pc+=sBx
     code!(0, 0, N, U, IABC /* */, "TFORCALL", unimplement), // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
     code!(0, 1, R, N, IAsBx /**/, "TFORLOOP", unimplement), // if R(A+1) ~= nil then { R(A)=R(A+1); pc += sBx }
     code!(0, 0, U, U, IABC /* */, "SETLIST ", set_list), // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
-    code!(0, 1, U, N, IABx /* */, "CLOSURE ", unimplement), // R(A) := closure(KPROTO[Bx])
-    code!(0, 1, U, N, IABC /* */, "VARARG  ", unimplement), // R(A), R(A+1), ..., R(A+B-2) = vararg
+    code!(0, 1, U, N, IABx /* */, "CLOSURE ", closure),  // R(A) := closure(KPROTO[Bx])
+    code!(0, 1, U, N, IABC /* */, "VARARG  ", vararg),   // R(A), R(A+1), ..., R(A+B-2) = vararg
     code!(0, 0, U, U, IAx /*  */, "EXTRAARG", unimplement), // extra (larger) argument for previous opcode
 ];
 
@@ -291,12 +295,115 @@ fn set_table(ins: Instruction, state: &mut State) {
 
 const LIST_BATCH_NUM: i64 = 50;
 fn set_list(ins: Instruction, state: &mut State) {
-    let (a, b, c) = ins.abc();
+    let (a, mut b, c) = ins.abc();
+    let a = a + 1;
+
+    let b_zero = b == 0;
+    if b_zero {
+        b = state.to_number(-1) as i32 - a - 1;
+        state.pop(1);
+    }
+
+    state.check_stack(1);
     let num = if c > 0 { c - 1 } else { state.fetch().ax() } as i64;
     let mut index = num * LIST_BATCH_NUM;
     (1..=b).for_each(|n| {
         index += 1;
-        state.push_index(a + 1 + n);
-        state.map_set_idx(a + 1, index);
-    })
+        state.push_index(a + n);
+        state.map_set_idx(a, index);
+    });
+
+    if b_zero {
+        (state.reg_count()..state.top() as i32).for_each(|index2| {
+            index += 1;
+            state.push_value(Value::Integer(index2 as i64));
+            state.map_set_idx(a, index);
+        });
+
+        state.set_top(state.reg_count());
+    }
+}
+
+fn closure(ins: Instruction, state: &mut State) {
+    let (a, bx) = ins.abx();
+    state.load_proto(bx as usize);
+    state.replace(a + 1);
+}
+
+/// when call `a(1, 2, b())`  
+/// the return value of b will stay on stack  
+/// so we just need to push the first part of the parameters onto stack  
+/// and rotate the first part of the parameters to the bottom  
+fn fix_stack(a: i32, state: &mut State) {
+    let n = state.to_number(-1) as i32;
+    state.pop(1);
+
+    state.check_stack((n - a) as usize);
+    (a..n).for_each(|index| state.push_index(index));
+    state.rorate(state.reg_count() + 1, n - a);
+}
+
+fn push_func_and_args(a: i32, b: i32, state: &mut State) -> usize {
+    if b >= 1 {
+        state.check_stack(b as usize);
+        (a..a + b).for_each(|index| state.push_index(index));
+        (b - 1) as usize
+    } else {
+        fix_stack(a, state);
+        state.top() - (state.reg_count() as usize) - 1
+    }
+}
+
+fn pop_return_value(a: i32, c: i32, state: &mut State) {
+    if c == 1 {
+        return;
+    } else if c > 1 {
+        ((a + c - 2)..a).for_each(|index| state.replace(index))
+    } else {
+        // leave the return value on the stack
+        state.check_stack(1);
+        state.push_value(Value::Integer(a as i64));
+    }
+}
+
+fn call(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    let a = a + 1;
+    let narg = push_func_and_args(a, b, state);
+    state.call(narg, (c - 1) as usize);
+    pop_return_value(a, c, state);
+}
+
+fn return_(ins: Instruction, state: &mut State) {
+    let (a, b, _) = ins.abc();
+    let a = a + 1;
+    if b == 0 {
+        fix_stack(a, state);
+    } else if b > 1 {
+        state.check_stack((b - 1) as usize);
+        (a..(a + b - 2)).for_each(|index| state.push_index(index))
+    }
+}
+
+fn vararg(ins: Instruction, state: &mut State) {
+    let (a, b, _) = ins.abc();
+    if b != 1 {
+        state.load_vararg(b - 1);
+        pop_return_value(a + 1, b, state);
+    }
+}
+
+fn tail_call(ins: Instruction, state: &mut State) {
+    unimplemented!()
+}
+
+fn self_(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    let a = a + 1;
+    let b = b + 1;
+
+    state.copy(b, a + 1);
+    state.get_rk(c);
+    state.map_get_top(b);
+    state.replace(a);
 }

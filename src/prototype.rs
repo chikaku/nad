@@ -1,6 +1,7 @@
 use crate::instruction::Instruction;
 use crate::value::{LocalValue, Upvalue, Value};
 use ansi_term::Color::Green;
+use std::rc::Rc;
 
 #[derive(Default)]
 pub struct Prototype {
@@ -13,7 +14,7 @@ pub struct Prototype {
     pub code: Vec<Instruction>,
     pub constants: Vec<Value>,
     pub upvalue: Vec<Upvalue>,
-    pub protos: Vec<Prototype>,
+    pub protos: Vec<Rc<Prototype>>,
     pub code_line: Vec<u32>,
     pub local_vars: Vec<LocalValue>,
     pub upvalue_name: Vec<String>,
@@ -25,14 +26,13 @@ impl Prototype {
     }
 
     fn print_header(&self) {
-        let func_type = match self.def_start_line > 0 {
-            true => "function",
-            false => "main",
-        };
-
         println!(
             "{} <{}:{},{}> ({} instruction)",
-            func_type,
+            if self.def_start_line > 0 {
+                "function"
+            } else {
+                "main"
+            },
             self.source,
             self.def_start_line,
             self.def_last_line,

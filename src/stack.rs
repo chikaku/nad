@@ -1,25 +1,24 @@
 use crate::func::Func;
 use crate::instruction::Instruction;
-use crate::prototype::Prototype;
 use crate::value::Value;
 use std::rc::Rc;
 
 pub struct Stack {
     pc: usize,
-    top: usize,
+    pub top: usize,
     slots: Vec<Value>,
-    varargs: Vec<Value>,
-    pub func: Func,
+    pub varargs: Rc<Vec<Value>>,
+    pub func: Option<Func>,
 }
 
 impl Stack {
-    pub fn new(size: usize, proto: Prototype) -> Stack {
+    pub fn new(size: usize) -> Stack {
         Stack {
             slots: vec![Value::Nil; size],
             top: 0,
-            varargs: vec![],
             pc: 0,
-            func: Func::new(Rc::new(proto)),
+            func: None,
+            varargs: Rc::new(vec![]),
         }
     }
 
@@ -33,11 +32,8 @@ impl Stack {
     }
 
     pub fn fetch(&self) -> Instruction {
-        self.func.proto.code[self.pc]
-    }
-
-    pub fn top(&self) -> usize {
-        self.top
+        let f = self.func.as_ref().unwrap();
+        f.proto.code[self.pc]
     }
 
     pub fn check(&mut self, n: usize) {
@@ -53,11 +49,21 @@ impl Stack {
         self.top += 1;
     }
 
+    pub fn pushn(&mut self, vs: &Vec<Value>, n: usize) {
+        (0..n).for_each(|index| self.push(vs.get(index).unwrap_or(&Value::Nil).clone()))
+    }
+
     pub fn pop(&mut self) -> Value {
         assert!(self.top > 0);
         self.top -= 1;
         let val = self.slots.remove(self.top);
         self.slots.insert(self.top, Value::Nil);
+        val
+    }
+
+    pub fn popn(&mut self, n: usize) -> Vec<Value> {
+        let mut val = vec![Value::Nil; n];
+        ((n - 1)..=0).for_each(|index| val[index] = self.pop());
         val
     }
 
@@ -110,13 +116,12 @@ impl Stack {
 
 #[cfg(test)]
 mod tests {
-    use crate::prototype::Prototype;
     use crate::stack::Stack;
     use crate::value::Value;
 
     #[test]
     fn test_stack() {
-        let mut s = Stack::new(2, Prototype::empty());
+        let mut s = Stack::new(2);
         assert!(!s.is_valid(1));
         s.push(Value::String("123".to_string()));
         assert!(s.is_valid(1));
@@ -139,7 +144,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_push() {
-        let mut s = Stack::new(1, Prototype::empty());
+        let mut s = Stack::new(1);
         s.push(Value::Integer(1));
         s.push(Value::Integer(1));
     }

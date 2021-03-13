@@ -4,24 +4,46 @@ use crate::instruction::Instruction;
 use crate::stack::Stack;
 use crate::value::Value;
 
+use crate::func::Func;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::LinkedList;
+use std::ops::Deref;
+use std::rc::Rc;
 
 pub struct State {
     chain: LinkedList<Stack>, // call stack
 }
 
 impl State {
-    pub fn new(ch: Chunk) -> State {
+    /// create new State using a default stack
+    pub fn new() -> State {
         let mut chain = LinkedList::new();
-        chain.push_back(Stack::new(0, ch.prototype));
+        chain.push_front(Stack::new(20));
         State { chain }
     }
 
+    /// create new State using given stack
     pub fn from_stack(stack: Stack) -> State {
         let mut chain = LinkedList::new();
         chain.push_back(stack);
         State { chain }
+    }
+
+    // create new State using a default stack and load chunk into stack
+    pub fn from_chunk(ch: Chunk) -> State {
+        let mut state = Self::new();
+        let func = Func::new(Rc::new(ch.prototype));
+        state.push_value(Value::Function(func));
+        state
+    }
+
+    fn stack(&self) -> &Stack {
+        self.chain.front().unwrap()
+    }
+
+    fn stack_mut(&mut self) -> &mut Stack {
+        self.chain.front_mut().unwrap()
     }
 }
 
@@ -39,10 +61,10 @@ impl State {
     }
 
     /// push value from constant table at index
-    #[allow(mutable_borrow_reservation_conflict)]
     pub fn get_const(&mut self, index: usize) {
-        let val = &self.chain.front().unwrap().func.proto.constants[index];
-        self.push_value(val.clone());
+        let proto = &self.stack().func.as_ref().unwrap().proto.clone();
+        let const_val = &proto.constants[index];
+        self.push_value(const_val.clone());
     }
 
     /// push value from stack index or constant table index
@@ -59,7 +81,7 @@ impl State {
 
 impl State {
     pub fn top(&self) -> usize {
-        self.chain.front().unwrap().top()
+        self.chain.front().unwrap().top
     }
 
     pub fn abs_index(&self, index: i32) -> usize {
@@ -68,6 +90,10 @@ impl State {
 
     pub fn check_stack(&mut self, n: usize) {
         self.chain.front_mut().unwrap().check(n);
+    }
+
+    pub fn reg_count(&self) -> i32 {
+        self.stack().func.as_ref().unwrap().proto.max_stack_size as i32
     }
 
     pub fn pop(&mut self, n: usize) {
@@ -249,16 +275,82 @@ impl State {
     }
 }
 
+impl State {
+    pub fn load_proto(&mut self, index: usize) {
+        let this_func = self.stack().func.as_ref().unwrap();
+        let proto = this_func.proto.protos[index].clone();
+        self.stack_mut().push(Value::Function(Func::new(proto)));
+    }
+
+    pub fn load_vararg(&mut self, n: i32) {
+        let n = if n < 0 {
+            self.stack().varargs.len()
+        } else {
+            n as usize
+        };
+        let stack = self.stack_mut();
+        stack.check(n);
+        let varargs = stack.varargs.clone();
+        stack.pushn(&varargs, n);
+    }
+}
+
+// Call
+impl State {
+    fn run_function(&mut self) {
+        let mut ins = self.fetch();
+        while !ins.is_ret() {
+            ins.exec(self);
+            ins = self.fetch();
+        }
+    }
+
+    fn call_function(&mut self, narg: usize, nret: usize, f: Func) {
+        let nregs = f.proto.max_stack_size as usize;
+        let nparams = f.proto.num_params as usize;
+        let is_vararg = f.proto.is_vararg == 1;
+
+        let mut stack = Stack::new(nregs + 20);
+        stack.func = Some(f);
+
+        let func_and_args = self.stack_mut().popn(narg + 1);
+        let (params, varargs) = func_and_args.split_at(nparams + 1);
+        stack.pushn(&params[1..].to_vec(), nparams);
+        stack.top = nregs;
+
+        if is_vararg && narg > nparams {
+            stack.varargs = Rc::new(varargs.to_vec());
+        }
+
+        self.chain.push_front(stack);
+        self.run_function();
+        let mut stack = self.chain.pop_front().unwrap();
+
+        if nret != 0 {
+            let retval = stack.popn(stack.top - nregs);
+            self.stack_mut().check(retval.len());
+            self.stack_mut().pushn(&retval, nret);
+        }
+    }
+
+    pub fn call(&mut self, narg: usize, nret: usize) {
+        let val = self.stack().get(-(narg as i32 + 1)).clone();
+        if let Value::Function(f) = val {
+            self.call_function(narg, nret, f);
+        } else {
+            panic!("not a function")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::chunk::Chunk;
-    use crate::prototype::Prototype;
     use crate::stack::Stack;
     use crate::state::State;
     use crate::value::Value;
 
     fn new_state() -> State {
-        State::from_stack(Stack::new(20, Prototype::empty()))
+        State::from_stack(Stack::new(20))
     }
 
     #[test]

@@ -5,6 +5,7 @@ use std::num::ParseFloatError;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 
 use crate::collection::Map;
+use crate::func::Func;
 use std::cell::RefCell;
 
 pub struct Upvalue {
@@ -34,6 +35,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Map(RefCell<Map>),
+    Function(Func),
 }
 
 macro_rules! impl_opf {
@@ -126,6 +128,7 @@ impl fmt::Display for Value {
             Value::Float(v) => write!(f, "{}", v),
             Value::String(v) => write!(f, "\"{}\"", v),
             Value::Map(m) => write!(f, "{}", m.borrow()),
+            Value::Function(_) => write!(f, "{}", "Function?"),
         }
     }
 }
@@ -165,6 +168,7 @@ impl std::cmp::PartialEq for Value {
                 Value::Map(m2) => m1 == m2,
                 _ => false,
             },
+            Value::Function(_) => false,
         }
     }
 
@@ -344,6 +348,7 @@ impl Value {
             Value::String(_) => "String",
             Value::Bool(_) => "Boolean",
             Value::Map(_) => "Map",
+            Value::Function(_) => "Function",
         }
     }
 }

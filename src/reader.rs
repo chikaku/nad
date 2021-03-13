@@ -8,6 +8,7 @@ use crate::chunk::{Chunk, Header};
 use crate::instruction::Instruction;
 use crate::prototype::Prototype;
 use crate::value::{LocalValue, Upvalue, Value};
+use std::rc::Rc;
 
 pub struct Reader<T: std::io::Read> {
     r: T,
@@ -152,11 +153,11 @@ impl<T: std::io::Read> Reader<T> {
         upvalues
     }
 
-    fn read_protos(&mut self, parent_source: &str) -> Vec<Prototype> {
+    fn read_protos(&mut self, parent_source: &str) -> Vec<Rc<Prototype>> {
         let count = self.read_uint32();
         let mut protos = Vec::with_capacity(count as usize);
         for _ in 0..count {
-            protos.push(self.read_prototype(parent_source))
+            protos.push(Rc::new(self.read_prototype(parent_source)))
         }
         protos
     }

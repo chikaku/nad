@@ -1,10 +1,11 @@
-use crate::opcode::{ArgType, Code, Mode, ALL};
+use crate::opcode::{ArgType, Code, Mode, ALL, RET};
 
 use std::fmt;
 
 #[derive(Copy, Clone)]
 pub struct Instruction(pub u32);
 
+use crate::state::State;
 use std::fmt::Formatter;
 use std::ops::BitAnd;
 
@@ -20,8 +21,16 @@ const MAX_BX: i32 = 1 << 18 - 1;
 const MAX_SBX: i32 = MAX_BX >> 1;
 
 impl Instruction {
-    fn opcode(self) -> &'static Code {
+    pub fn exec(&self, state: &mut State) {
+        (&ALL[(self.0 & 0x3F) as usize].exec)(*self, state)
+    }
+
+    pub fn opcode(self) -> &'static Code {
         &ALL[(self.0 & 0x3F) as usize]
+    }
+
+    pub fn is_ret(&self) -> bool {
+        self.0 & 0x3F == RET
     }
 
     pub fn ax(self) -> i32 {
