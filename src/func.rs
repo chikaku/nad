@@ -1,7 +1,7 @@
 use crate::prototype::Prototype;
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct Func {
     pub proto: Rc<Prototype>,
 }

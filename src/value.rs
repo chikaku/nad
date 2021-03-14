@@ -4,15 +4,18 @@ use std::fmt;
 use std::num::ParseFloatError;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 
-use crate::collection::Map;
 use crate::func::Func;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::{BuildHasher, Hash, Hasher};
 
+#[derive(Copy, Clone, Hash)]
 pub struct Upvalue {
     pub in_stack: u8,
     pub idx: u8,
 }
 
+#[derive(Hash)]
 pub struct LocalValue {
     pub name: String,
     pub pc_start: u32,
@@ -34,8 +37,26 @@ pub enum Value {
     Integer(i64),
     Float(f64),
     String(String),
-    Map(RefCell<Map>),
+    Map(RefCell<HashMap<Value, Value>>),
     Function(Func),
+}
+
+impl Eq for Value {}
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(self.type_name().as_bytes());
+        match self {
+            Value::_None => Value::_None.hash(state),
+            Value::Nil => Value::Nil.hash(state),
+            Value::Bool(v) => v.hash(state),
+            Value::Integer(i) => i.hash(state),
+            Value::Float(f) => f.to_be_bytes().hash(state),
+            Value::String(s) => s.hash(state),
+            Value::Map(m) => m.borrow().keys().for_each(|k| k.hash(state)),
+            Value::Function(f) => f.hash(state),
+        }
+    }
 }
 
 macro_rules! impl_opf {
@@ -127,7 +148,7 @@ impl fmt::Display for Value {
             Value::Integer(v) => write!(f, "{}", v),
             Value::Float(v) => write!(f, "{}", v),
             Value::String(v) => write!(f, "\"{}\"", v),
-            Value::Map(m) => write!(f, "{}", m.borrow()),
+            Value::Map(m) => write!(f, "{:?}", m),
             Value::Function(_) => write!(f, "{}", "Function?"),
         }
     }
@@ -138,8 +159,6 @@ impl fmt::Debug for Value {
         write!(f, "{}", self)
     }
 }
-
-impl Eq for Value {}
 
 impl std::cmp::PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {

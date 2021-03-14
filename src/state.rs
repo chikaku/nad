@@ -1,5 +1,4 @@
 use crate::chunk::Chunk;
-use crate::collection::Map;
 use crate::instruction::Instruction;
 use crate::stack::Stack;
 use crate::value::Value;
@@ -7,7 +6,7 @@ use crate::value::Value;
 use crate::func::Func;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
-use std::collections::LinkedList;
+use std::collections::{HashMap, LinkedList};
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -49,15 +48,18 @@ impl State {
 
 impl State {
     pub fn pc(&self) -> usize {
-        self.chain.front().unwrap().pc()
+        self.stack().pc()
     }
 
     pub fn add_pc(&mut self, n: i32) {
-        self.chain.front_mut().unwrap().add_pc(n)
+        self.stack_mut().add_pc(n)
     }
 
     pub fn fetch(&mut self) -> Instruction {
-        self.chain.front().unwrap().fetch()
+        let stack = self.stack_mut();
+        let ins = stack.fetch();
+        stack.add_pc(1);
+        ins
     }
 
     /// push value from constant table at index
@@ -81,15 +83,15 @@ impl State {
 
 impl State {
     pub fn top(&self) -> usize {
-        self.chain.front().unwrap().top
+        self.stack().top
     }
 
     pub fn abs_index(&self, index: i32) -> usize {
-        self.chain.front().unwrap().abx_index(index)
+        self.stack().abx_index(index)
     }
 
     pub fn check_stack(&mut self, n: usize) {
-        self.chain.front_mut().unwrap().check(n);
+        self.stack_mut().check(n);
     }
 
     pub fn reg_count(&self) -> i32 {
@@ -98,7 +100,7 @@ impl State {
 
     pub fn pop(&mut self, n: usize) {
         for _ in 0..n {
-            self.chain.front_mut().unwrap().pop();
+            self.stack_mut().pop();
         }
     }
 
@@ -107,25 +109,24 @@ impl State {
     }
 
     pub fn copy(&mut self, from: i32, to: i32) {
-        let stack = self.chain.front_mut().unwrap();
+        let stack = self.stack_mut();
         let val = stack.get(from).clone();
         stack.set(to, val);
     }
 
     pub fn push_index(&mut self, index: i32) {
-        let stack = self.chain.front_mut().unwrap();
+        let stack = self.stack_mut();
         let val = stack.get(index).clone();
         stack.push(val);
     }
 
     pub fn push_value(&mut self, val: Value) {
-        let stack = self.chain.front_mut().unwrap();
-        stack.push(val)
+        self.stack_mut().push(val);
     }
 
     /// pop value set to index
     pub fn replace(&mut self, index: i32) {
-        let stack = self.chain.front_mut().unwrap();
+        let stack = self.stack_mut();
         let val = stack.pop();
         stack.set(index, val);
     }
@@ -220,13 +221,13 @@ impl State {
 // Map
 impl State {
     pub fn map_new(&mut self, n: usize) {
-        self.push_value(Value::Map(RefCell::new(Map::new(n))));
+        self.push_value(Value::Map(RefCell::new(HashMap::with_capacity(n))));
     }
 
     fn map_get(&mut self, index: i32, key: &Value) {
         let stack = self.chain.front_mut().unwrap();
         if let Value::Map(m) = stack.get(index) {
-            let val = m.borrow().get(key).clone();
+            let val = m.borrow().get(key).unwrap().clone();
             stack.push(val);
         } else {
             panic!("not a Map");
@@ -250,7 +251,7 @@ impl State {
     fn map_set(&mut self, index: usize, key: Value, val: Value) {
         let stack = self.chain.front().unwrap();
         if let Value::Map(m) = stack.get(index as i32) {
-            m.borrow_mut().put(key, val);
+            m.borrow_mut().insert(key, val);
         } else {
             panic!("not a Map");
         }
@@ -298,10 +299,13 @@ impl State {
 // Call
 impl State {
     fn run_function(&mut self) {
-        let mut ins = self.fetch();
-        while !ins.is_ret() {
+        loop {
+            let ins = self.fetch();
+            println!("ins: {}", ins.opcode().name);
             ins.exec(self);
-            ins = self.fetch();
+            if ins.is_ret() {
+                break;
+            }
         }
     }
 

@@ -2,7 +2,7 @@ use crate::opcode::{ArgType, Code, Mode, ALL, RET};
 
 use std::fmt;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash)]
 pub struct Instruction(pub u32);
 
 use crate::state::State;
@@ -17,7 +17,7 @@ impl BitAnd<u32> for Instruction {
     }
 }
 
-const MAX_BX: i32 = 1 << 18 - 1;
+const MAX_BX: i32 = (1 << 18) - 1;
 const MAX_SBX: i32 = MAX_BX >> 1;
 
 impl Instruction {
@@ -38,7 +38,7 @@ impl Instruction {
     }
 
     pub fn abx(self) -> (i32, i32) {
-        ((self.0 >> 6 & 0xFF) as i32, (self.0 >> 14) as i32)
+        (((self.0 >> 6) & 0xFF) as i32, (self.0 >> 14) as i32)
     }
 
     pub fn abc(self) -> (i32, i32, i32) {

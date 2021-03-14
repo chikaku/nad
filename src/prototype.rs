@@ -3,7 +3,7 @@ use crate::value::{LocalValue, Upvalue, Value};
 use ansi_term::Color::Green;
 use std::rc::Rc;
 
-#[derive(Default)]
+#[derive(Default, Hash)]
 pub struct Prototype {
     pub source: String,
     pub def_start_line: u32,

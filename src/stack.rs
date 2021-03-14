@@ -63,7 +63,7 @@ impl Stack {
 
     pub fn popn(&mut self, n: usize) -> Vec<Value> {
         let mut val = vec![Value::Nil; n];
-        ((n - 1)..=0).for_each(|index| val[index] = self.pop());
+        (0..n).for_each(|index| val[n - 1 - index] = self.pop());
         val
     }
 
