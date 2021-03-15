@@ -33,7 +33,11 @@ impl Stack {
 
     pub fn fetch(&self) -> Instruction {
         let f = self.func.as_ref().unwrap();
-        f.proto.code[self.pc]
+        if let Func::Proto(p) = f {
+            return p.code[self.pc];
+        } else {
+            panic!("fetch on non-proto type")
+        }
     }
 
     pub fn check(&mut self, n: usize) {

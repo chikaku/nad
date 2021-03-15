@@ -105,7 +105,7 @@ pub const ALL: &'static [Code] = &[
     code!(0, 1, U, U, IABC /* */, "LOADBOOL", load_bool), // R(A) := (bool)B; if (C) pc++
     code!(0, 1, U, N, IABC /* */, "LOADNIL ", load_nil), // R(A), R(A+1), ..., R(A+B) := nil
     code!(0, 1, U, N, IABC /* */, "GETUPVAL", unimplement), // R(A) := UpValue[B]
-    code!(0, 1, U, K, IABC /* */, "GETTABUP", unimplement), // R(A) := UpValue[B][RK(C)]
+    code!(0, 1, U, K, IABC /* */, "GETTABUP", get_tap_up), // R(A) := UpValue[B][RK(C)]
     code!(0, 1, R, K, IABC /* */, "GETTABLE", get_table), // R(A) := R(B)[RK(C)]
     code!(0, 0, K, K, IABC /* */, "SETTABUP", unimplement), // UpValue[A][RK(B)] := RK(C)
     code!(0, 0, U, N, IABC /* */, "SETUPVAL", unimplement), // UpValue[B] := R(A)
@@ -418,4 +418,15 @@ fn self_(ins: Instruction, state: &mut State) {
     state.get_rk(c);
     state.map_get_top(b);
     state.replace(a);
+}
+
+fn get_tap_up(ins: Instruction, state: &mut State) {
+    let (a, _, c) = ins.abc();
+    let a = a + 1;
+
+    state.push_global_map();
+    state.get_rk(c);
+    state.map_get_top(-2);
+    state.replace(a);
+    state.pop(1);
 }

@@ -29,6 +29,8 @@ pub const CONST_TAG_INT: u8 = 0x13;
 pub const CONST_TAG_SHORT_STR: u8 = 0x04;
 pub const CONST_TAG_LONG_STR: u8 = 0x14;
 
+pub type Map = RefCell<HashMap<Value, Value>>;
+
 #[derive(Clone)]
 pub enum Value {
     _None,
@@ -37,7 +39,7 @@ pub enum Value {
     Integer(i64),
     Float(f64),
     String(String),
-    Map(RefCell<HashMap<Value, Value>>),
+    Map(Map),
     Function(Func),
 }
 

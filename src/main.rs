@@ -11,7 +11,9 @@ mod stack;
 mod state;
 mod value;
 
+use crate::func::Func;
 use crate::state::State;
+use crate::value::Value;
 use ansi_term::Color::{Green, Red};
 
 fn main() {
@@ -56,8 +58,14 @@ impl Option {
         if self.exec {
             self.path.iter().for_each(|path| {
                 let ch = reader::Reader::from_file(path).into_chunk();
-                State::from_chunk(ch).call(0, 0);
+                let mut state = State::from_chunk(ch);
+                state.register("print".to_string(), Value::Function(Func::RS(print)));
+                state.call(0, 0);
             })
         }
     }
+}
+
+fn print(state: &mut State) -> usize {
+    0
 }
