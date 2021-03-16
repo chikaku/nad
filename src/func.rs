@@ -1,9 +1,17 @@
-use crate::prototype::Prototype;
-use crate::state::State;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+use crate::prototype::Prototype;
+use crate::state::State;
+use crate::value::Value;
+use std::cell::RefCell;
+
 pub type BuiltinFunc = fn(&mut State) -> usize;
+
+struct Closure {
+    proto: Func,
+    upval: Vec<RefCell<Value>>,
+}
 
 #[derive(Clone)]
 pub enum Func {
@@ -23,5 +31,15 @@ impl Hash for Func {
 impl Func {
     pub fn with_proto(proto: Rc<Prototype>) -> Self {
         Func::Proto(proto)
+    }
+}
+
+impl Closure {
+    pub fn with_proto(proto: Rc<Prototype>) -> Self {
+        let uv_count = proto.upvalue.len();
+        Closure {
+            proto: Func::Proto(proto),
+            upval: vec![RefCell::new(Value::Nil); uv_count],
+        }
     }
 }

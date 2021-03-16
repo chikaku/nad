@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use crate::state::State;
 use crate::value::Value;
 use crate::Func;
-use std::collections::HashMap;
 
 macro_rules! add_func {
     ($m:ident, $name:ident) => {

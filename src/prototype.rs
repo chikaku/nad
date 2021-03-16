@@ -1,7 +1,8 @@
-use crate::instruction::Instruction;
-use crate::value::{LocalValue, Upvalue, Value};
 use ansi_term::Color::Green;
 use std::rc::Rc;
+
+use crate::instruction::Instruction;
+use crate::value::{LocalValue, Upvalue, Value};
 
 #[derive(Default, Hash)]
 pub struct Prototype {

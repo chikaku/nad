@@ -66,3 +66,12 @@ impl Option {
         }
     }
 }
+
+#[cfg(test)]
+mod playground {
+    #[test]
+    fn main() {
+        let n = 0;
+        let v1 = vec![0; n];
+    }
+}

@@ -1,7 +1,8 @@
+use std::rc::Rc;
+
 use crate::func::Func;
 use crate::instruction::Instruction;
 use crate::value::Value;
-use std::rc::Rc;
 
 pub struct Stack {
     pc: usize,

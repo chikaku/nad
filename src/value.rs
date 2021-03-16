@@ -1,13 +1,12 @@
+use std::cell::RefCell;
 use std::cmp::Ordering;
-
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::num::ParseFloatError;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 
 use crate::func::Func;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 
 #[derive(Copy, Clone, Hash)]
 pub struct Upvalue {

@@ -1,23 +1,23 @@
-use crate::chunk::Chunk;
-use crate::instruction::Instruction;
-use crate::stack::Stack;
-use crate::value::{Map, Value};
-
-use crate::builtin::add_builtin_func;
-use crate::func::{BuiltinFunc, Func};
-use crate::prototype::Prototype;
 use std::cell::RefCell;
 use std::collections::{HashMap, LinkedList};
 use std::rc::Rc;
+
+use crate::builtin::add_builtin_func;
+use crate::chunk::Chunk;
+use crate::func::{BuiltinFunc, Func};
+use crate::instruction::Instruction;
+use crate::prototype::Prototype;
+use crate::stack::Stack;
+use crate::value::{Map, Value};
 
 const GLOBAL_MAP_INDEX: &Value = &Value::_None;
 
 pub struct State {
     chain: LinkedList<Stack>, // call stack
-    registry: Map,
+    registry: HashMap<Value, Value>,
 }
 
-fn new_registry_whith_builtin() -> Map {
+fn new_registry_whith_builtin() -> HashMap<Value, Value> {
     let mut global_map = HashMap::new();
     add_builtin_func(&mut global_map);
 
@@ -27,7 +27,7 @@ fn new_registry_whith_builtin() -> Map {
         Value::Map(RefCell::new(global_map)),
     );
 
-    RefCell::new(registry)
+    registry
 }
 
 impl State {
@@ -149,22 +149,13 @@ impl State {
     }
 
     pub fn push_global_map(&mut self) {
-        let val = self
-            .registry
-            .borrow()
-            .get(GLOBAL_MAP_INDEX)
-            .unwrap()
-            .clone();
+        let val = self.registry.get(GLOBAL_MAP_INDEX).unwrap().clone();
+        assert!(matches!(val, Value::Map(_)));
         self.push_value(val);
     }
 
     pub fn global_map_get(&mut self, name: String) {
-        let gmap = self
-            .registry
-            .borrow()
-            .get(GLOBAL_MAP_INDEX)
-            .unwrap()
-            .clone();
+        let gmap = self.registry.get(GLOBAL_MAP_INDEX).unwrap().clone();
         if let Value::Map(mut m) = gmap {
             let val = m.get_mut().get(&Value::String(name)).unwrap();
             self.push_value(val.clone());
@@ -174,19 +165,11 @@ impl State {
     }
 
     pub fn global_map_set(&mut self, name: String) {
-        let gmap = self
-            .registry
-            .borrow()
-            .get(GLOBAL_MAP_INDEX)
-            .unwrap()
-            .clone();
-        if let Value::Map(mut m) = gmap {
+        let gmap = self.registry.get(GLOBAL_MAP_INDEX).unwrap();
+        assert!(matches!(gmap, &Value::Map(_)));
+        if let Value::Map(mut m) = gmap.clone() {
             let val = self.pop_value();
             m.get_mut().insert(Value::String(name), val);
-            self.registry
-                .borrow_mut()
-                .insert(GLOBAL_MAP_INDEX.clone(), Value::Map(m.clone()));
-            println!("{}", m.get_mut().len());
         } else {
             panic!("global map is nil")
         }

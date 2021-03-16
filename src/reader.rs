@@ -3,12 +3,12 @@ use std::io;
 use std::io::Read;
 use std::ops::Add;
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::chunk::{Chunk, Header};
 use crate::instruction::Instruction;
 use crate::prototype::Prototype;
 use crate::value::{LocalValue, Upvalue, Value};
-use std::rc::Rc;
 
 pub struct Reader<T: std::io::Read> {
     r: T,

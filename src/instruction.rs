@@ -1,13 +1,12 @@
-use crate::opcode::{ArgType, Code, Mode, ALL, RET};
-
 use std::fmt;
+use std::fmt::Formatter;
+use std::ops::BitAnd;
+
+use crate::opcode::{ArgType, Code, Mode, ALL, RET};
+use crate::state::State;
 
 #[derive(Copy, Clone, Hash)]
 pub struct Instruction(pub u32);
-
-use crate::state::State;
-use std::fmt::Formatter;
-use std::ops::BitAnd;
 
 impl BitAnd<u32> for Instruction {
     type Output = Instruction;
