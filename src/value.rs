@@ -7,7 +7,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Su
 use crate::func::Func;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{Hash, Hasher};
 
 #[derive(Copy, Clone, Hash)]
 pub struct Upvalue {
@@ -49,8 +49,8 @@ impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(self.type_name().as_bytes());
         match self {
-            Value::_None => Value::_None.hash(state),
-            Value::Nil => Value::Nil.hash(state),
+            Value::_None => {}
+            Value::Nil => {}
             Value::Bool(v) => v.hash(state),
             Value::Integer(i) => i.hash(state),
             Value::Float(f) => f.to_be_bytes().hash(state),
@@ -149,7 +149,7 @@ impl fmt::Display for Value {
             Value::Bool(v) => write!(f, "{}", v),
             Value::Integer(v) => write!(f, "{}", v),
             Value::Float(v) => write!(f, "{}", v),
-            Value::String(v) => write!(f, "\"{}\"", v),
+            Value::String(v) => write!(f, "{}", v),
             Value::Map(m) => write!(f, "{:?}", m),
             Value::Function(_) => write!(f, "{}", "Function?"),
         }

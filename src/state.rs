@@ -3,51 +3,53 @@ use crate::instruction::Instruction;
 use crate::stack::Stack;
 use crate::value::{Map, Value};
 
-use crate::func::{Func, RSFunc};
+use crate::builtin::add_builtin_func;
+use crate::func::{BuiltinFunc, Func};
 use crate::prototype::Prototype;
-use crate::value::Value::Function;
-use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::{HashMap, LinkedList};
-use std::ops::Deref;
 use std::rc::Rc;
 
 const GLOBAL_MAP_INDEX: &Value = &Value::_None;
 
 pub struct State {
     chain: LinkedList<Stack>, // call stack
-    resigrty: Map,
+    registry: Map,
+}
+
+fn new_registry_whith_builtin() -> Map {
+    let mut global_map = HashMap::new();
+    add_builtin_func(&mut global_map);
+
+    let mut registry = HashMap::new();
+    registry.insert(
+        GLOBAL_MAP_INDEX.clone(),
+        Value::Map(RefCell::new(global_map)),
+    );
+
+    RefCell::new(registry)
 }
 
 impl State {
-    /// create new State using a default stack
-    pub fn new() -> State {
-        let resigrty = RefCell::new(HashMap::new());
-        resigrty.borrow_mut().insert(
-            GLOBAL_MAP_INDEX.clone(),
-            Value::Map(RefCell::new(HashMap::new())),
-        );
-        let mut chain = LinkedList::new();
-        chain.push_front(Stack::new(20));
-        State { chain, resigrty }
-    }
-
     /// create new State using given stack
     pub fn from_stack(stack: Stack) -> State {
-        let resigrty = RefCell::new(HashMap::new());
-        resigrty.borrow_mut().insert(
-            GLOBAL_MAP_INDEX.clone(),
-            Value::Map(RefCell::new(HashMap::new())),
-        );
         let mut chain = LinkedList::new();
         chain.push_back(stack);
-        State { chain, resigrty }
+        State {
+            chain,
+            registry: new_registry_whith_builtin(),
+        }
+    }
+
+    /// create new State using a default stack
+    pub fn new() -> State {
+        Self::from_stack(Stack::new(20))
     }
 
     // create new State using a default stack and load chunk into stack
     pub fn from_chunk(ch: Chunk) -> State {
         let mut state = Self::new();
-        let func = Func::new_proto(Rc::new(ch.prototype));
+        let func = Func::with_proto(Rc::new(ch.prototype));
         state.push_value(Value::Function(func));
         state
     }
@@ -148,7 +150,7 @@ impl State {
 
     pub fn push_global_map(&mut self) {
         let val = self
-            .resigrty
+            .registry
             .borrow()
             .get(GLOBAL_MAP_INDEX)
             .unwrap()
@@ -158,7 +160,7 @@ impl State {
 
     pub fn global_map_get(&mut self, name: String) {
         let gmap = self
-            .resigrty
+            .registry
             .borrow()
             .get(GLOBAL_MAP_INDEX)
             .unwrap()
@@ -173,7 +175,7 @@ impl State {
 
     pub fn global_map_set(&mut self, name: String) {
         let gmap = self
-            .resigrty
+            .registry
             .borrow()
             .get(GLOBAL_MAP_INDEX)
             .unwrap()
@@ -181,6 +183,10 @@ impl State {
         if let Value::Map(mut m) = gmap {
             let val = self.pop_value();
             m.get_mut().insert(Value::String(name), val);
+            self.registry
+                .borrow_mut()
+                .insert(GLOBAL_MAP_INDEX.clone(), Value::Map(m.clone()));
+            println!("{}", m.get_mut().len());
         } else {
             panic!("global map is nil")
         }
@@ -349,7 +355,7 @@ impl State {
         if let Func::Proto(p) = this_func {
             let proto = p.protos[index].clone();
             self.stack_mut()
-                .push(Value::Function(Func::new_proto(proto)));
+                .push(Value::Function(Func::with_proto(proto)));
         } else {
             panic!("not a proto type");
         }
@@ -373,7 +379,6 @@ impl State {
     fn run_function(&mut self) {
         loop {
             let ins = self.fetch();
-            println!("ins: {}", ins.opcode().name);
             ins.exec(self);
             if ins.is_ret() {
                 break;
@@ -409,9 +414,9 @@ impl State {
         }
     }
 
-    fn call_rs_function(&mut self, narg: usize, nret: usize, f: RSFunc) {
+    fn call_rs_function(&mut self, narg: usize, nret: usize, f: BuiltinFunc) {
         let mut stack = Stack::new(narg + 20);
-        stack.func = Some(Func::RS(f));
+        stack.func = Some(Func::Builtin(f));
 
         let args = self.stack_mut().popn(narg);
         stack.pushn(&args, narg);
@@ -433,7 +438,7 @@ impl State {
         if let Value::Function(f) = val {
             match f {
                 Func::Proto(p) => self.call_function(narg, nret, p),
-                Func::RS(f) => self.call_rs_function(narg, nret, f),
+                Func::Builtin(f) => self.call_rs_function(narg, nret, f),
             }
         } else {
             panic!("not a function")

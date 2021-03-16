@@ -1,7 +1,7 @@
 use std::env::args;
 
+mod builtin;
 mod chunk;
-mod collection;
 mod func;
 mod instruction;
 mod opcode;
@@ -13,8 +13,9 @@ mod value;
 
 use crate::func::Func;
 use crate::state::State;
-use crate::value::Value;
+
 use ansi_term::Color::{Green, Red};
+use std::fmt::Debug;
 
 fn main() {
     let args = args();
@@ -59,13 +60,9 @@ impl Option {
             self.path.iter().for_each(|path| {
                 let ch = reader::Reader::from_file(path).into_chunk();
                 let mut state = State::from_chunk(ch);
-                state.register("print".to_string(), Value::Function(Func::RS(print)));
+
                 state.call(0, 0);
             })
         }
     }
-}
-
-fn print(state: &mut State) -> usize {
-    0
 }

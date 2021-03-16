@@ -1,7 +1,6 @@
 use crate::instruction::Instruction;
 use crate::state::State;
 use crate::value::{fb2int, Value};
-use std::os::macos::raw::stat;
 
 #[derive(Eq, PartialEq)]
 pub enum Mode {
@@ -366,7 +365,7 @@ fn pop_return_value(a: i32, c: i32, state: &mut State) {
     if c == 1 {
         return;
     } else if c > 1 {
-        let mut index = (a + c - 2);
+        let mut index = a + c - 2;
         while index >= a {
             state.replace(index);
             index -= 1;
