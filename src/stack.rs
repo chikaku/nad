@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use crate::func::{Closure, Func};
 use crate::instruction::Instruction;
+use crate::prototype::Prototype;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -11,7 +12,8 @@ pub struct Stack {
     pub top: usize,
     pub slots: Vec<Rc<RefCell<Value>>>,
     pub varargs: Rc<Vec<Value>>,
-    pub func: Option<Closure>,
+    pub func: Rc<Prototype>,
+    pub upvals: Vec<Rc<RefCell<Value>>>,
     pub openuv: HashMap<i32, Rc<RefCell<Value>>>,
 }
 
@@ -20,9 +22,10 @@ impl Stack {
         Stack {
             top: 0,
             pc: 0,
-            func: None,
+            func: Rc::new(Prototype::empty()),
             varargs: Rc::new(vec![]),
-            openuv: Default::default(),
+            upvals: vec![],
+            openuv: HashMap::new(),
             slots: (0..size)
                 .into_iter()
                 .map(|_| Rc::new(RefCell::from(Value::Nil)))
@@ -40,12 +43,7 @@ impl Stack {
     }
 
     pub fn fetch(&mut self) -> Instruction {
-        let proto = &self.func.as_ref().unwrap().proto;
-        if let Func::Proto(p) = proto {
-            return p.code[self.pc];
-        } else {
-            panic!("fetch on non-proto type")
-        }
+        self.func.code[self.pc]
     }
 
     pub fn check(&mut self, n: usize) {
@@ -113,6 +111,7 @@ impl Stack {
         index >= 0 && index <= self.top as i32
     }
 
+    // TODO: return Ref<T> and get ref by &*
     pub fn get(&self, index: i32) -> Value {
         let index = self.abx_index(index);
         assert!(index > 0);

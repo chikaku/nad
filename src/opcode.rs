@@ -103,11 +103,11 @@ pub const ALL: &'static [Code] = &[
     code!(0, 1, N, N, IABx /* */, "LOADKX  ", load_constx), // R(A) := Kst(extra arg)
     code!(0, 1, U, U, IABC /* */, "LOADBOOL", load_bool), // R(A) := (bool)B; if (C) pc++
     code!(0, 1, U, N, IABC /* */, "LOADNIL ", load_nil), // R(A), R(A+1), ..., R(A+B) := nil
-    code!(0, 1, U, N, IABC /* */, "GETUPVAL", unimplement), // R(A) := UpValue[B]
-    code!(0, 1, U, K, IABC /* */, "GETTABUP", get_tap_up), // R(A) := UpValue[B][RK(C)]
+    code!(0, 1, U, N, IABC /* */, "GETUPVAL", get_upval), // R(A) := UpValue[B]
+    code!(0, 1, U, K, IABC /* */, "GETTABUP", get_uv_map), // R(A) := UpValue[B][RK(C)]
     code!(0, 1, R, K, IABC /* */, "GETTABLE", get_table), // R(A) := R(B)[RK(C)]
-    code!(0, 0, K, K, IABC /* */, "SETTABUP", unimplement), // UpValue[A][RK(B)] := RK(C)
-    code!(0, 0, U, N, IABC /* */, "SETUPVAL", unimplement), // UpValue[B] := R(A)
+    code!(0, 0, K, K, IABC /* */, "SETTABUP", set_uv_map), // UpValue[A][RK(B)] := RK(C)
+    code!(0, 0, U, N, IABC /* */, "SETUPVAL", set_upval), // UpValue[B] := R(A)
     code!(0, 0, K, K, IABC /* */, "SETTABLE", set_table), // R(A)[RK(B)] := RK(C)
     code!(0, 1, U, U, IABC /* */, "NEWTABLE", new_table), // R(A) := {} (size = B,C)
     code!(0, 1, R, K, IABC /* */, "SELF    ", self_), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
@@ -159,7 +159,9 @@ fn move_(ins: Instruction, state: &mut State) {
 fn jmp(ins: Instruction, state: &mut State) {
     let (a, sbx) = ins.asbx();
     state.add_pc(sbx);
-    assert_eq!(a, 0, "unimplemented")
+    if a != 0 {
+        state.close_upval(a);
+    }
 }
 
 fn load_nil(ins: Instruction, state: &mut State) {
@@ -382,7 +384,7 @@ fn call(ins: Instruction, state: &mut State) {
     let (a, b, c) = ins.abc();
     let a = a + 1;
     let narg = push_func_and_args(a, b, state);
-    state.call(narg, (c - 1) as usize);
+    state.call(narg, c - 1);
     pop_return_value(a, c, state);
 }
 
@@ -420,13 +422,37 @@ fn self_(ins: Instruction, state: &mut State) {
     state.replace(a);
 }
 
-fn get_tap_up(ins: Instruction, state: &mut State) {
-    let (a, _, c) = ins.abc();
+fn get_upval(ins: Instruction, state: &mut State) {
+    let (a, b, _) = ins.abc();
+    let a = a + 1;
+    let b = b + 1; // uv index
+
+    state.uv_get(b, a);
+}
+
+fn set_upval(ins: Instruction, state: &mut State) {
+    let (a, b, _) = ins.abc();
+    let a = a + 1;
+    let b = b + 1; // uv index
+
+    state.uv_set(a, b);
+}
+
+fn get_uv_map(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
+    let a = a + 1;
+    let b = b + 1;
+
+    state.get_rk(c);
+    state.uv_map_get(b);
+    state.replace(a);
+}
+
+fn set_uv_map(ins: Instruction, state: &mut State) {
+    let (a, b, c) = ins.abc();
     let a = a + 1;
 
-    state.push_global_map();
+    state.get_rk(b);
     state.get_rk(c);
-    state.map_get_top(-2);
-    state.replace(a);
-    state.pop(1);
+    state.uv_map_set(a);
 }

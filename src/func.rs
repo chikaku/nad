@@ -43,10 +43,13 @@ impl Func {
 
 impl Closure {
     pub fn with_proto(proto: Rc<Prototype>) -> Self {
-        let uv_count = proto.upvalue.len();
+        let mut upval = vec![];
+        for _ in 0..(proto.upvalue.len()) {
+            upval.push(Rc::from(RefCell::new(Value::Nil)));
+        }
         Closure {
+            upval,
             proto: Func::Proto(proto),
-            upval: vec![Rc::from(RefCell::new(Value::Nil)); uv_count],
         }
     }
 

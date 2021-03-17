@@ -91,6 +91,5 @@ mod playground {
             .collect::<Vec<_>>();
 
         *v[0].borrow_mut() = Value::String("123".to_string());
-        println!("{:?}", v);
     }
 }
