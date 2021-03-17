@@ -11,7 +11,6 @@ mod stack;
 mod state;
 mod value;
 
-use crate::func::Func;
 use crate::state::State;
 
 use ansi_term::Color::{Green, Red};
@@ -69,9 +68,29 @@ impl Option {
 
 #[cfg(test)]
 mod playground {
+    use crate::value::Value;
+    use std::cell::{Cell, Ref, RefCell};
+    use std::rc::Rc;
+
+    struct Foo<T: Clone> {
+        bar: Vec<Rc<RefCell<T>>>,
+    }
+
+    impl<T: Clone> Foo<T> {
+        fn get_bar(&self, index: usize) -> T {
+            self.bar[index].borrow_mut().clone()
+        }
+    }
+
     #[test]
     fn main() {
-        let n = 0;
-        let v1 = vec![0; n];
+        let size = 2;
+        let v = (0..size)
+            .into_iter()
+            .map(|_| RefCell::from(Value::Nil))
+            .collect::<Vec<_>>();
+
+        *v[0].borrow_mut() = Value::String("123".to_string());
+        println!("{:?}", v);
     }
 }

@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
+use crate::func::Closure;
 use crate::state::State;
 use crate::value::Value;
-use crate::Func;
 
 macro_rules! add_func {
     ($m:ident, $name:ident) => {
         $m.insert(
             Value::String(stringify!($name).to_string()),
-            Value::Function(Func::Builtin($name)),
+            Value::Function(Closure::with_builtin($name)),
         );
     };
 }

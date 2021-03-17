@@ -1,25 +1,32 @@
 use std::rc::Rc;
 
-use crate::func::Func;
+use crate::func::{Closure, Func};
 use crate::instruction::Instruction;
 use crate::value::Value;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 pub struct Stack {
     pc: usize,
     pub top: usize,
-    slots: Vec<Value>,
+    pub slots: Vec<Rc<RefCell<Value>>>,
     pub varargs: Rc<Vec<Value>>,
-    pub func: Option<Func>,
+    pub func: Option<Closure>,
+    pub openuv: HashMap<i32, Rc<RefCell<Value>>>,
 }
 
 impl Stack {
     pub fn new(size: usize) -> Stack {
         Stack {
-            slots: vec![Value::Nil; size],
             top: 0,
             pc: 0,
             func: None,
             varargs: Rc::new(vec![]),
+            openuv: Default::default(),
+            slots: (0..size)
+                .into_iter()
+                .map(|_| Rc::new(RefCell::from(Value::Nil)))
+                .collect(),
         }
     }
 
@@ -32,9 +39,9 @@ impl Stack {
         self.pc = (self.pc as i32 + n) as usize;
     }
 
-    pub fn fetch(&self) -> Instruction {
-        let f = self.func.as_ref().unwrap();
-        if let Func::Proto(p) = f {
+    pub fn fetch(&mut self) -> Instruction {
+        let proto = &self.func.as_ref().unwrap().proto;
+        if let Func::Proto(p) = proto {
             return p.code[self.pc];
         } else {
             panic!("fetch on non-proto type")
@@ -44,13 +51,13 @@ impl Stack {
     pub fn check(&mut self, n: usize) {
         let free = self.slots.len() - self.top;
         for _ in free..n {
-            self.slots.push(Value::Nil)
+            self.slots.push(Rc::from(RefCell::from(Value::Nil)))
         }
     }
 
     pub fn push(&mut self, v: Value) {
         assert!(self.slots.len() > self.top);
-        self.slots[self.top] = v;
+        self.slots[self.top] = Rc::from(RefCell::from(v));
         self.top += 1;
     }
 
@@ -62,8 +69,10 @@ impl Stack {
         assert!(self.top > 0);
         self.top -= 1;
         let val = self.slots.remove(self.top);
-        self.slots.insert(self.top, Value::Nil);
-        val
+        self.slots
+            .insert(self.top, Rc::from(RefCell::from(Value::Nil)));
+        // TODO: how to get value directly
+        val.replace(Value::Nil)
     }
 
     pub fn popn(&mut self, n: usize) -> Vec<Value> {
@@ -104,18 +113,22 @@ impl Stack {
         index >= 0 && index <= self.top as i32
     }
 
-    pub fn get(&self, index: i32) -> &Value {
+    pub fn get(&self, index: i32) -> Value {
         let index = self.abx_index(index);
-        if 0 < index && index <= self.top {
-            return &self.slots[index - 1];
-        }
-        &Value::_None
+        assert!(index > 0);
+
+        self.slots
+            .get(index - 1)
+            .unwrap_or(&Rc::new(RefCell::new(Value::Nil)))
+            .borrow_mut()
+            .clone()
     }
 
     pub fn set(&mut self, index: i32, v: Value) {
         let index = self.abx_index(index);
         assert!(0 < index && index <= self.top);
-        self.slots[index - 1] = v
+        let source = self.slots[index - 1].clone();
+        *source.borrow_mut() = v;
     }
 }
 
@@ -141,9 +154,9 @@ mod tests {
         s.check(1);
         s.push(Value::Integer(1));
         s.set(1, Value::Integer(2));
-        assert_eq!(s.get(1), &Value::Integer(2));
-
-        assert_eq!(s.get(4), &Value::_None);
+        // assert_eq!(s.get(1), &Value::Integer(2));
+        //
+        // assert_eq!(s.get(4), &Value::_None);
     }
 
     #[test]

@@ -6,7 +6,8 @@ use std::hash::{Hash, Hasher};
 use std::num::ParseFloatError;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 
-use crate::func::Func;
+use crate::func::{Closure, Func};
+use std::rc::Rc;
 
 #[derive(Copy, Clone, Hash)]
 pub struct Upvalue {
@@ -29,6 +30,7 @@ pub const CONST_TAG_SHORT_STR: u8 = 0x04;
 pub const CONST_TAG_LONG_STR: u8 = 0x14;
 
 pub type Map = RefCell<HashMap<Value, Value>>;
+pub type MutValue = Rc<RefCell<Value>>;
 
 #[derive(Clone)]
 pub enum Value {
@@ -39,7 +41,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Map(Map),
-    Function(Func),
+    Function(Closure),
 }
 
 impl Eq for Value {}

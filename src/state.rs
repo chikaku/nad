@@ -4,11 +4,11 @@ use std::rc::Rc;
 
 use crate::builtin::add_builtin_func;
 use crate::chunk::Chunk;
-use crate::func::{BuiltinFunc, Func};
+use crate::func::{BuiltinFunc, Closure, Func};
 use crate::instruction::Instruction;
 use crate::prototype::Prototype;
 use crate::stack::Stack;
-use crate::value::{Map, Value};
+use crate::value::Value;
 
 const GLOBAL_MAP_INDEX: &Value = &Value::_None;
 
@@ -49,7 +49,11 @@ impl State {
     // create new State using a default stack and load chunk into stack
     pub fn from_chunk(ch: Chunk) -> State {
         let mut state = Self::new();
-        let func = Func::with_proto(Rc::new(ch.prototype));
+        let mut func = Closure::with_proto(Rc::new(ch.prototype));
+        if func.upval.len() > 0 {
+            let gmap = state.registry.get(GLOBAL_MAP_INDEX).unwrap();
+            func.upval[0] = Rc::from(RefCell::new(gmap.clone()));
+        }
         state.push_value(Value::Function(func));
         state
     }
@@ -81,7 +85,7 @@ impl State {
 
     /// push value from constant table at index
     pub fn get_const(&mut self, index: usize) {
-        let proto = match &self.stack().func.as_ref().unwrap() {
+        let proto = match &self.stack().func.as_ref().unwrap().proto {
             Func::Proto(p) => p.clone(),
             _ => panic!("not a proto"),
         };
@@ -114,8 +118,9 @@ impl State {
         self.stack_mut().check(n);
     }
 
-    pub fn reg_count(&self) -> i32 {
-        if let Func::Proto(p) = self.stack().func.as_ref().unwrap() {
+    pub fn reg_count(&mut self) -> i32 {
+        let proto = &self.stack().func.as_ref().unwrap().proto;
+        if let Func::Proto(p) = proto {
             return p.max_stack_size as i32;
         } else {
             panic!("not a proto type");
@@ -252,7 +257,7 @@ impl State {
     }
 
     pub fn compare(&mut self, a: i32, b: i32, op: &'static str) -> bool {
-        let stack = self.chain.front().unwrap();
+        let stack = self.stack_mut();
         let a = stack.get(a);
         let b = stack.get(b);
         match op {
@@ -334,11 +339,28 @@ impl State {
 
 impl State {
     pub fn load_proto(&mut self, index: usize) {
-        let this_func = self.stack().func.as_ref().unwrap();
+        let stack = self.stack_mut();
+        let this_func = &stack.func.as_ref().unwrap().proto;
         if let Func::Proto(p) = this_func {
             let proto = p.protos[index].clone();
-            self.stack_mut()
-                .push(Value::Function(Func::with_proto(proto)));
+            let mut closure = Closure::with_proto(proto.clone());
+            for (index, uv) in proto.upvalue.iter().enumerate() {
+                if uv.in_stack == 1 {
+                    match stack.openuv.get(&(uv.idx as i32)) {
+                        Some(v) => closure.upval[index] = v.clone(),
+                        None => {
+                            let val = stack.slots[uv.idx as usize].clone();
+                            closure.upval[index] = val.clone();
+                            stack.openuv.insert(uv.idx as i32, val.clone());
+                        }
+                    }
+                } else {
+                    closure.upval[index] =
+                        stack.func.as_ref().unwrap().upval[uv.idx as usize].clone();
+                }
+            }
+
+            stack.push(Value::Function(closure));
         } else {
             panic!("not a proto type");
         }
@@ -375,7 +397,7 @@ impl State {
         let is_vararg = f.is_vararg == 1;
 
         let mut stack = Stack::new(nregs + 20);
-        stack.func = Some(Func::Proto(f));
+        stack.func = Some(Closure::with_proto(f));
 
         let func_and_args = self.stack_mut().popn(narg + 1);
         let (params, varargs) = func_and_args.split_at(nparams + 1);
@@ -399,7 +421,7 @@ impl State {
 
     fn call_rs_function(&mut self, narg: usize, nret: usize, f: BuiltinFunc) {
         let mut stack = Stack::new(narg + 20);
-        stack.func = Some(Func::Builtin(f));
+        stack.func = Some(Closure::with_builtin(f));
 
         let args = self.stack_mut().popn(narg);
         stack.pushn(&args, narg);
@@ -417,9 +439,9 @@ impl State {
     }
 
     pub fn call(&mut self, narg: usize, nret: usize) {
-        let val = self.stack().get(-(narg as i32 + 1)).clone();
+        let val = self.stack().get(-(narg as i32 + 1));
         if let Value::Function(f) = val {
-            match f {
+            match f.proto {
                 Func::Proto(p) => self.call_function(narg, nret, p),
                 Func::Builtin(f) => self.call_rs_function(narg, nret, f),
             }

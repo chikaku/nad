@@ -326,8 +326,8 @@ fn set_list(ins: Instruction, state: &mut State) {
             state.push_index(index2);
             state.map_set_idx(a, index);
         });
-
-        state.set_top(state.reg_count());
+        let c = state.reg_count();
+        state.set_top(c);
     }
 }
 
@@ -347,7 +347,8 @@ fn fix_stack(a: i32, state: &mut State) {
 
     state.check_stack((n - a) as usize);
     (a..n).for_each(|index| state.push_index(index));
-    state.rorate(state.reg_count() + 1, n - a);
+    let c = state.reg_count() + 1;
+    state.rorate(c, n - a);
 }
 
 fn push_func_and_args(a: i32, b: i32, state: &mut State) -> usize {

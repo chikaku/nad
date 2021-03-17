@@ -8,9 +8,16 @@ use std::cell::RefCell;
 
 pub type BuiltinFunc = fn(&mut State) -> usize;
 
-struct Closure {
-    proto: Func,
-    upval: Vec<RefCell<Value>>,
+#[derive(Clone)]
+pub struct Closure {
+    pub proto: Func,
+    pub upval: Vec<Rc<RefCell<Value>>>,
+}
+
+impl Hash for Closure {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.proto.hash(state);
+    }
 }
 
 #[derive(Clone)]
@@ -39,7 +46,14 @@ impl Closure {
         let uv_count = proto.upvalue.len();
         Closure {
             proto: Func::Proto(proto),
-            upval: vec![RefCell::new(Value::Nil); uv_count],
+            upval: vec![Rc::from(RefCell::new(Value::Nil)); uv_count],
+        }
+    }
+
+    pub fn with_builtin(f: BuiltinFunc) -> Self {
+        Closure {
+            proto: Func::Builtin(f),
+            upval: vec![],
         }
     }
 }
