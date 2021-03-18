@@ -34,9 +34,10 @@ impl State {
     }
 
     fn map_set(&mut self, index: usize, key: Value, val: Value) {
-        let stack = self.stack();
+        let stack = self.stack_mut();
         if let Value::Map(m) = stack.get(index as i32) {
             m.borrow_mut().insert(key, val);
+            stack.set(index as i32, Value::Map(m));
         } else {
             panic!("not a Map");
         }

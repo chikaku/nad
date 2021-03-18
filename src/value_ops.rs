@@ -10,8 +10,8 @@ macro_rules! impl_opf {
             type Output = Result<Value, IntoError>;
 
             fn $m(self, rhs: Self) -> Self::Output {
-                let f1 = self.as_float()?;
-                let f2 = rhs.as_float()?;
+                let f1 = self.into_float()?;
+                let f2 = rhs.into_float()?;
                 Ok(Value::Float(f1 $op f2))
             }
         }
@@ -24,8 +24,8 @@ macro_rules! impl_opb {
             type Output = Result<Value, IntoError>;
 
             fn $m(self, rhs: Self) -> Self::Output {
-                let v1 = self.as_integer()?;
-                let v2 = rhs.as_integer()?;
+                let v1 = self.into_integer()?;
+                let v2 = rhs.into_integer()?;
                 Ok(Value::Integer(v1 $op v2))
             }
         }
@@ -44,8 +44,8 @@ macro_rules! impl_op {
                     }
                 }
 
-                let f1 = self.as_float()?;
-                let f2 = rhs.as_float()?;
+                let f1 = self.into_float()?;
+                let f2 = rhs.into_float()?;
                 Ok(Value::Float(f1 $op f2))
             }
         }
@@ -79,7 +79,7 @@ impl<'m> Not for Value {
     type Output = IntoResult<Value>;
 
     fn not(self) -> Self::Output {
-        let v1 = self.as_integer()?;
+        let v1 = self.into_integer()?;
         Ok(Value::Integer(!v1))
     }
 }

@@ -25,7 +25,8 @@ fn print(state: &mut State) -> usize {
                 state.get_rk((index - 1) as i32);
                 format!("{}", state.pop_value())
             })
-            .collect::<String>()
+            .collect::<Vec<String>>()
+            .join(" ")
     );
     0
 }

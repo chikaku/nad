@@ -40,11 +40,13 @@ impl State {
     fn run_function(&mut self) {
         loop {
             let ins = self.fetch();
-            println!(
-                "{}{}",
-                "    ".repeat(self.depth - 1),
-                Green.bold().paint(ins.opcode().name)
-            );
+            if self.options.show_ins {
+                println!(
+                    "{}{}",
+                    "    ".repeat(self.depth - 1),
+                    Green.bold().paint(ins.opcode().name)
+                );
+            }
             ins.exec(self);
             if ins.is_ret() {
                 break;

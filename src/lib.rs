@@ -15,7 +15,9 @@ mod value_ops;
 mod state;
 mod state_call;
 mod state_map;
+mod state_option;
 mod state_uv;
 
 pub use reader::Reader;
 pub use state::State;
+pub use state_option::Options;

@@ -36,7 +36,7 @@ impl<'a> Reader<io::BufReader<&'a [u8]>> {
 }
 
 impl<T: std::io::Read> Reader<T> {
-    pub fn read_byte(&mut self) -> u8 {
+    fn read_byte(&mut self) -> u8 {
         let mut data: [u8; 1] = [0];
         self.r.read_exact(&mut data).unwrap();
         u8::from_le_bytes(data)
@@ -237,41 +237,13 @@ impl<T: std::io::Read> Reader<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::chunk::LUAC_HEADER;
     use crate::reader::Reader;
-    use std::fs::read_dir;
-    use std::path::PathBuf;
 
     #[test]
-    fn test_reader() {
+    fn read_byte() {
         let mut r = Reader::from_str("123");
         assert_eq!(r.read_byte(), '1' as u8);
         assert_eq!(r.read_byte(), '2' as u8);
         assert_eq!(r.read_byte(), '3' as u8);
-
-        let mut r = Reader::from_file("./luacode/hello_world.luac");
-        assert_eq!(r.read_bytes(), LUAC_HEADER.signature);
-    }
-
-    fn iter_luac<F: FnMut(PathBuf)>(f: F) {
-        read_dir("./luacode")
-            .unwrap()
-            .filter_map(|path| {
-                let path = path.ok()?.path();
-                path.to_str()?.ends_with(".luac").then(move || path)
-            })
-            .for_each(f)
-    }
-
-    #[test]
-    fn check_header() {
-        iter_luac(|path| {
-            Reader::from_file(path).check_header();
-        });
-    }
-
-    #[test]
-    fn dump_proto() {
-        iter_luac(|path| Reader::from_file(path).dump_proto());
     }
 }

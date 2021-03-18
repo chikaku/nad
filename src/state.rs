@@ -7,12 +7,16 @@ use crate::chunk::Chunk;
 use crate::func::Closure;
 use crate::instruction::Instruction;
 use crate::stack::Stack;
+use crate::state_option::Options;
 use crate::value::Value;
+use crate::Reader;
+use std::path::Path;
 
-const GLOBAL_MAP_INDEX: &Value = &Value::Nil;
+const GLOBAL_MAP_INDEX: &'static Value = &Value::Nil;
 
 pub struct State {
     pub(in crate) depth: usize,
+    pub(in crate) options: Options,
     pub(in crate) chain: LinkedList<Stack>, // call stack
     registry: HashMap<Value, Value>,
 }
@@ -44,7 +48,12 @@ impl State {
             depth: 0,
             chain,
             registry: new_registry_whith_builtin(),
+            options: Options::default(),
         }
+    }
+
+    pub fn from_file<P: AsRef<Path>>(path: P) -> State {
+        Self::from_chunk(Reader::from_file(path).into_chunk())
     }
 
     // create new State using a default stack and load chunk into stack
@@ -58,6 +67,10 @@ impl State {
 
         state.push_value(Value::Function(func));
         state
+    }
+
+    pub fn with_option(&mut self, opts: Options) {
+        self.options = opts;
     }
 
     pub(in crate) fn stack(&self) -> &Stack {
@@ -272,11 +285,11 @@ impl State {
     }
 
     pub fn to_boolean(&self, index: i32) -> bool {
-        self.chain.front().unwrap().get(index).as_boolean()
+        self.stack().get(index).into_boolean()
     }
 
     pub fn to_number(&self, index: i32) -> f64 {
-        self.chain.front().unwrap().get(index).as_float().unwrap()
+        self.stack().get(index).into_float().unwrap()
     }
 }
 

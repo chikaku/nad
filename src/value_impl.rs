@@ -43,10 +43,10 @@ pub fn fb2int(x: i32) -> i32 {
 }
 
 impl Value {
-    pub fn as_integer(&self) -> IntoResult<i64> {
+    pub fn into_integer(self) -> IntoResult<i64> {
         match self {
-            &Value::Integer(v) => Ok(v),
-            &Value::Float(f) => float_to_integer(f),
+            Value::Integer(v) => Ok(v),
+            Value::Float(f) => float_to_integer(f),
             Value::String(s) => s
                 .parse::<f64>()
                 .map_err(IntoError::Float)
@@ -55,10 +55,10 @@ impl Value {
         }
     }
 
-    pub fn as_float(&self) -> IntoResult<f64> {
+    pub fn into_float(self) -> IntoResult<f64> {
         match self {
-            &Value::Float(f) => Ok(f),
-            &Value::Integer(v) => Ok(v as f64),
+            Value::Float(f) => Ok(f),
+            Value::Integer(v) => Ok(v as f64),
             Value::String(s) => s.parse::<f64>().map_err(IntoError::Float),
             _ => Err(IntoError::TypeUnsupported),
         }
@@ -73,10 +73,10 @@ impl Value {
         }
     }
 
-    pub fn as_boolean(&self) -> bool {
+    pub fn into_boolean(self) -> bool {
         match self {
-            &Value::Nil => false,
-            &Value::Bool(v) => v,
+            Value::Nil => false,
+            Value::Bool(v) => v,
             _ => true,
         }
     }
