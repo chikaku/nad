@@ -1,2 +1,4 @@
-print()
-print("Hello, World!")
+function hello()
+    return "Hello, World"
+end
+print(hello())

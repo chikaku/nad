@@ -53,10 +53,14 @@ impl Closure {
         }
     }
 
-    pub fn with_builtin(f: BuiltinFunc) -> Self {
+    pub fn with_builtin(f: BuiltinFunc, n: usize) -> Self {
+        let mut upval = vec![];
+        for _ in 0..n {
+            upval.push(Rc::from(RefCell::new(Value::Nil)));
+        }
         Closure {
+            upval,
             proto: Func::Builtin(f),
-            upval: vec![],
         }
     }
 }

@@ -8,7 +8,7 @@ macro_rules! add_func {
     ($m:ident, $name:ident) => {
         $m.insert(
             Value::String(stringify!($name).to_string()),
-            Value::Function(Closure::with_builtin($name)),
+            Value::Function(Closure::with_builtin($name, 0)),
         );
     };
 }

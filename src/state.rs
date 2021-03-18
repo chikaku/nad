@@ -15,6 +15,7 @@ use std::borrow::Borrow;
 const GLOBAL_MAP_INDEX: &Value = &Value::_None;
 
 pub struct State {
+    depth: usize,
     chain: LinkedList<Stack>, // call stack
     registry: HashMap<Value, Value>,
 }
@@ -38,6 +39,7 @@ impl State {
         let mut chain = LinkedList::new();
         chain.push_back(stack);
         State {
+            depth: 0,
             chain,
             registry: new_registry_whith_builtin(),
         }
@@ -77,6 +79,14 @@ impl State {
 
     pub fn add_pc(&mut self, n: i32) {
         self.stack_mut().add_pc(n)
+    }
+
+    pub fn add_depth(&mut self) {
+        self.depth += 1;
+    }
+
+    pub fn sub_depth(&mut self) {
+        self.depth -= 1;
     }
 
     pub fn fetch(&mut self) -> Instruction {
@@ -363,7 +373,7 @@ impl State {
         let stack = self.stack_mut();
         stack.check(n);
         let varargs = stack.varargs.clone();
-        stack.pushn(&varargs, n);
+        stack.pushn(&varargs, n as i32);
     }
 }
 
@@ -423,7 +433,11 @@ impl State {
     fn run_function(&mut self) {
         loop {
             let ins = self.fetch();
-            println!("{}", Green.bold().paint(ins.opcode().name));
+            println!(
+                "{}{}",
+                "    ".repeat(self.depth - 1),
+                Green.bold().paint(ins.opcode().name)
+            );
             ins.exec(self);
             if ins.is_ret() {
                 break;
@@ -437,7 +451,7 @@ impl State {
             match f.proto {
                 Func::Proto(proto) => {
                     let nregs = proto.max_stack_size as usize;
-                    let nparams = proto.num_params as usize;
+                    let nparams = proto.num_params as i32;
                     let is_vararg = proto.is_vararg == 1;
 
                     let mut stack = Stack::new(nregs + 20);
@@ -445,36 +459,43 @@ impl State {
                     stack.upvals = f.upval;
 
                     let func_and_args = self.stack_mut().popn(narg + 1);
-                    let (params, varargs) = func_and_args.split_at(nparams + 1);
+                    let (params, varargs) = func_and_args.split_at((nparams + 1) as usize);
                     stack.pushn(&params[1..].to_vec(), nparams);
                     stack.top = nregs;
 
-                    if is_vararg && narg > nparams {
+                    if is_vararg && narg > nparams as usize {
                         stack.varargs = Rc::new(varargs.to_vec());
                     }
 
                     self.chain.push_front(stack);
+                    self.add_depth();
                     self.run_function();
+                    self.sub_depth();
                     let mut stack = self.chain.pop_front().unwrap();
 
-                    if nret > 0 {
+                    if nret != 0 {
                         let retval = stack.popn(stack.top - nregs);
                         self.stack_mut().check(retval.len());
-                        self.stack_mut().pushn(&retval, nret as usize);
+                        self.stack_mut().pushn(&retval, nret);
                     }
                 }
                 Func::Builtin(rf) => {
                     let mut stack = Stack::new(narg + 20);
+                    stack.upvals = f.upval;
                     let args = self.stack_mut().popn(narg);
-                    stack.pushn(&args, narg);
+                    stack.pushn(&args, narg as i32);
                     self.stack_mut().pop();
+
                     self.chain.push_front(stack);
+                    self.add_depth();
                     let fret = rf(self);
+                    self.sub_depth();
                     let mut stack = self.chain.pop_front().unwrap();
-                    if nret > 0 {
+
+                    if nret != 0 {
                         let retval = stack.popn(fret);
                         self.stack_mut().check(retval.len());
-                        self.stack_mut().pushn(&retval, nret as usize);
+                        self.stack_mut().pushn(&retval, nret);
                     }
                 }
             }

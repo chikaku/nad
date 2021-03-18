@@ -12,6 +12,7 @@ end
 
 c1 = newCounter()
 print(c1())
+print(c1())
 
 c2 = newCounter()
 print(c2())

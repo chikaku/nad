@@ -59,7 +59,8 @@ impl Stack {
         self.top += 1;
     }
 
-    pub fn pushn(&mut self, vs: &Vec<Value>, n: usize) {
+    pub fn pushn(&mut self, vs: &Vec<Value>, n: i32) {
+        let n = if n < 0 { vs.len() } else { n as usize };
         (0..n).for_each(|index| self.push(vs.get(index).unwrap_or(&Value::Nil).clone()))
     }
 
