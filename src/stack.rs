@@ -1,20 +1,20 @@
-use std::rc::Rc;
-
-use crate::func::{Closure, Func};
-use crate::instruction::Instruction;
-use crate::prototype::Prototype;
-use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+
+use crate::instruction::Instruction;
+use crate::prototype::Prototype;
+use crate::value::MutValue;
+use crate::value::Value;
 
 pub struct Stack {
     pc: usize,
     pub top: usize,
-    pub slots: Vec<Rc<RefCell<Value>>>,
+    pub slots: Vec<MutValue>,
     pub varargs: Rc<Vec<Value>>,
     pub func: Rc<Prototype>,
-    pub upvals: Vec<Rc<RefCell<Value>>>,
-    pub openuv: HashMap<i32, Rc<RefCell<Value>>>,
+    pub upvals: Vec<MutValue>,
+    pub openuv: HashMap<i32, MutValue>,
 }
 
 impl Stack {

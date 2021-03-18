@@ -4,19 +4,16 @@ use std::rc::Rc;
 
 use crate::builtin::add_builtin_func;
 use crate::chunk::Chunk;
-use crate::func::{BuiltinFunc, Closure, Func};
+use crate::func::Closure;
 use crate::instruction::Instruction;
-use crate::prototype::Prototype;
 use crate::stack::Stack;
 use crate::value::Value;
-use ansi_term::Color::Green;
-use std::borrow::Borrow;
 
-const GLOBAL_MAP_INDEX: &Value = &Value::_None;
+const GLOBAL_MAP_INDEX: &Value = &Value::Nil;
 
 pub struct State {
-    depth: usize,
-    chain: LinkedList<Stack>, // call stack
+    pub(in crate) depth: usize,
+    pub(in crate) chain: LinkedList<Stack>, // call stack
     registry: HashMap<Value, Value>,
 }
 
@@ -34,6 +31,11 @@ fn new_registry_whith_builtin() -> HashMap<Value, Value> {
 }
 
 impl State {
+    /// create new State using a default stack
+    pub fn new() -> State {
+        Self::from_stack(Stack::new(20))
+    }
+
     /// create new State using given stack
     pub fn from_stack(stack: Stack) -> State {
         let mut chain = LinkedList::new();
@@ -43,11 +45,6 @@ impl State {
             chain,
             registry: new_registry_whith_builtin(),
         }
-    }
-
-    /// create new State using a default stack
-    pub fn new() -> State {
-        Self::from_stack(Stack::new(20))
     }
 
     // create new State using a default stack and load chunk into stack
@@ -63,11 +60,11 @@ impl State {
         state
     }
 
-    fn stack(&self) -> &Stack {
+    pub(in crate) fn stack(&self) -> &Stack {
         self.chain.front().unwrap()
     }
 
-    fn stack_mut(&mut self) -> &mut Stack {
+    pub(in crate) fn stack_mut(&mut self) -> &mut Stack {
         self.chain.front_mut().unwrap()
     }
 }
@@ -75,6 +72,10 @@ impl State {
 impl State {
     pub fn pc(&self) -> usize {
         self.stack().pc()
+    }
+
+    pub fn top(&self) -> usize {
+        self.stack().top
     }
 
     pub fn add_pc(&mut self, n: i32) {
@@ -96,29 +97,6 @@ impl State {
         ins
     }
 
-    /// push value from constant table at index
-    pub fn get_const(&mut self, index: usize) {
-        let const_val = &self.stack().func.constants[index];
-        self.push_value(const_val.clone());
-    }
-
-    /// push value from stack index or constant table index
-    pub fn get_rk(&mut self, index: i32) {
-        if index > 0xFF {
-            // push constant value
-            self.get_const((index & 0xFF) as usize);
-        } else {
-            // push register value
-            self.push_index(index + 1);
-        }
-    }
-}
-
-impl State {
-    pub fn top(&self) -> usize {
-        self.stack().top
-    }
-
     pub fn abs_index(&self, index: i32) -> usize {
         self.stack().abx_index(index)
     }
@@ -138,13 +116,7 @@ impl State {
     }
 
     pub fn pop_value(&mut self) -> Value {
-        self.chain.front_mut().unwrap().pop()
-    }
-
-    pub fn copy(&mut self, from: i32, to: i32) {
-        let stack = self.stack_mut();
-        let val = stack.get(from).clone();
-        stack.set(to, val);
+        self.stack_mut().pop()
     }
 
     pub fn push_index(&mut self, index: i32) {
@@ -155,6 +127,31 @@ impl State {
 
     pub fn push_value(&mut self, val: Value) {
         self.stack_mut().push(val);
+    }
+}
+
+impl State {
+    pub fn copy(&mut self, from: i32, to: i32) {
+        let stack = self.stack_mut();
+        let val = stack.get(from).clone();
+        stack.set(to, val);
+    }
+
+    /// push value from constant table at index
+    pub fn get_const(&mut self, index: usize) {
+        let const_val = self.stack().func.constants[index].clone();
+        self.push_value(const_val);
+    }
+
+    /// push value from stack index or constant table index
+    pub fn get_rk(&mut self, index: i32) {
+        if index > 0xFF {
+            // push constant value
+            self.get_const((index & 0xFF) as usize);
+        } else {
+            // push register value
+            self.push_index(index + 1);
+        }
     }
 
     pub fn push_global_map(&mut self) {
@@ -284,227 +281,6 @@ impl State {
 }
 
 // Map
-impl State {
-    pub fn map_new(&mut self, n: usize) {
-        self.push_value(Value::Map(RefCell::new(HashMap::with_capacity(n))));
-    }
-
-    fn map_get(&mut self, index: i32, key: &Value) {
-        let stack = self.chain.front_mut().unwrap();
-        if let Value::Map(m) = stack.get(index) {
-            let val = m.borrow().get(key).unwrap().clone();
-            stack.push(val);
-        } else {
-            panic!("not a Map");
-        }
-    }
-
-    pub fn map_get_top(&mut self, index: i32) {
-        // `immutable borrow` must occured after `mutable borrow`
-        // so pop key first then get map from stack at index
-        // we must get absolute index first, because pop will change negative index
-        let index = self.abs_index(index);
-        let key = self.chain.front_mut().unwrap().pop();
-
-        self.map_get(index as i32, &key);
-    }
-
-    pub fn map_get_str(&mut self, index: i32, key: String) {
-        self.map_get(index, &Value::String(key));
-    }
-
-    fn map_set(&mut self, index: usize, key: Value, val: Value) {
-        let stack = self.chain.front().unwrap();
-        if let Value::Map(m) = stack.get(index as i32) {
-            m.borrow_mut().insert(key, val);
-        } else {
-            panic!("not a Map");
-        }
-    }
-
-    pub fn map_set_top(&mut self, index: i32) {
-        let index = self.abs_index(index);
-        assert!(index <= self.top() - 2);
-        let stack = self.chain.front_mut().unwrap();
-        let val = stack.pop();
-        let key = stack.pop();
-        self.map_set(index, key, val);
-    }
-
-    pub fn map_set_idx(&mut self, index: i32, key: i64) {
-        let index = self.abs_index(index);
-        assert!(index <= self.top() - 2);
-        let stack = self.chain.front_mut().unwrap();
-        let val = stack.pop();
-        let key = Value::Integer(key);
-        self.map_set(index, key, val);
-    }
-}
-
-impl State {
-    pub fn load_proto(&mut self, index: usize) {
-        let stack = self.stack_mut();
-        let proto = &stack.func.protos[index];
-        let mut closure = Closure::with_proto(proto.clone());
-        for (index, uv) in proto.upvalue.iter().enumerate() {
-            if uv.in_stack == 1 {
-                match stack.openuv.get(&(uv.idx as i32)) {
-                    Some(v) => closure.upval[index] = v.clone(),
-                    None => {
-                        let val = stack.slots[uv.idx as usize].clone();
-                        closure.upval[index] = val.clone();
-                        stack.openuv.insert(uv.idx as i32, val.clone());
-                    }
-                }
-            } else {
-                closure.upval[index] = stack.upvals[uv.idx as usize].clone();
-            }
-        }
-
-        stack.push(Value::Function(closure));
-    }
-
-    pub fn load_vararg(&mut self, n: i32) {
-        let n = if n < 0 {
-            self.stack().varargs.len()
-        } else {
-            n as usize
-        };
-        let stack = self.stack_mut();
-        stack.check(n);
-        let varargs = stack.varargs.clone();
-        stack.pushn(&varargs, n as i32);
-    }
-}
-
-impl State {
-    fn uv_get_index(&mut self, index: i32) -> Value {
-        self.stack_mut().upvals[index as usize].borrow_mut().clone()
-    }
-
-    fn uv_set_index(&mut self, index: i32, val: Value) {
-        let uvref = self.stack_mut().upvals[index as usize].clone();
-        *uvref.borrow_mut() = val;
-    }
-
-    pub fn uv_get(&mut self, uv_idx: i32, to: i32) {
-        let val = self.uv_get_index(uv_idx - 1);
-        let stack = self.stack_mut();
-        stack.set(to, val);
-    }
-
-    pub fn uv_set(&mut self, from: i32, uv_idx: i32) {
-        let val = self.stack().get(from);
-        self.uv_set_index(uv_idx - 1, val);
-    }
-
-    pub fn uv_map_get(&mut self, uv_idx: i32) {
-        let uvmap = self.uv_get_index(uv_idx - 1);
-        let stack = self.stack_mut();
-        let key = stack.pop();
-        if let Value::Map(m) = uvmap {
-            let val = m.borrow_mut().get(&key).unwrap_or(&Value::Nil).clone();
-            stack.push(val);
-        } else {
-            panic!("not a map");
-        }
-    }
-
-    pub fn uv_map_set(&mut self, uv_idx: i32) {
-        let uvmap = self.uv_get_index(uv_idx - 1);
-        let stack = self.stack_mut();
-        let val = stack.pop();
-        let key = stack.pop();
-        if let Value::Map(m) = uvmap {
-            m.borrow_mut().insert(key, val);
-            self.uv_set_index(uv_idx - 1, Value::Map(m));
-        } else {
-            panic!("not a map");
-        }
-    }
-
-    pub fn close_upval(&mut self, a: i32) {
-        // ???
-    }
-}
-
-// Call
-impl State {
-    fn run_function(&mut self) {
-        loop {
-            let ins = self.fetch();
-            println!(
-                "{}{}",
-                "    ".repeat(self.depth - 1),
-                Green.bold().paint(ins.opcode().name)
-            );
-            ins.exec(self);
-            if ins.is_ret() {
-                break;
-            }
-        }
-    }
-
-    pub fn call(&mut self, narg: usize, nret: i32) {
-        let val = self.stack().get(-(narg as i32 + 1));
-        if let Value::Function(f) = val {
-            match f.proto {
-                Func::Proto(proto) => {
-                    let nregs = proto.max_stack_size as usize;
-                    let nparams = proto.num_params as i32;
-                    let is_vararg = proto.is_vararg == 1;
-
-                    let mut stack = Stack::new(nregs + 20);
-                    stack.func = proto.clone();
-                    stack.upvals = f.upval;
-
-                    let func_and_args = self.stack_mut().popn(narg + 1);
-                    let (params, varargs) = func_and_args.split_at((nparams + 1) as usize);
-                    stack.pushn(&params[1..].to_vec(), nparams);
-                    stack.top = nregs;
-
-                    if is_vararg && narg > nparams as usize {
-                        stack.varargs = Rc::new(varargs.to_vec());
-                    }
-
-                    self.chain.push_front(stack);
-                    self.add_depth();
-                    self.run_function();
-                    self.sub_depth();
-                    let mut stack = self.chain.pop_front().unwrap();
-
-                    if nret != 0 {
-                        let retval = stack.popn(stack.top - nregs);
-                        self.stack_mut().check(retval.len());
-                        self.stack_mut().pushn(&retval, nret);
-                    }
-                }
-                Func::Builtin(rf) => {
-                    let mut stack = Stack::new(narg + 20);
-                    stack.upvals = f.upval;
-                    let args = self.stack_mut().popn(narg);
-                    stack.pushn(&args, narg as i32);
-                    self.stack_mut().pop();
-
-                    self.chain.push_front(stack);
-                    self.add_depth();
-                    let fret = rf(self);
-                    self.sub_depth();
-                    let mut stack = self.chain.pop_front().unwrap();
-
-                    if nret != 0 {
-                        let retval = stack.popn(fret);
-                        self.stack_mut().check(retval.len());
-                        self.stack_mut().pushn(&retval, nret);
-                    }
-                }
-            }
-        } else {
-            // TODO: how to avoid this
-            panic!("not a function")
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

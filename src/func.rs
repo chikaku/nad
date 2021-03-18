@@ -1,17 +1,17 @@
+use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::prototype::Prototype;
-use crate::state::State;
-use crate::value::Value;
-use std::cell::RefCell;
+use crate::value::{MutValue, Value};
+use crate::State;
 
 pub type BuiltinFunc = fn(&mut State) -> usize;
 
 #[derive(Clone)]
 pub struct Closure {
     pub proto: Func,
-    pub upval: Vec<Rc<RefCell<Value>>>,
+    pub upval: Vec<MutValue>,
 }
 
 impl Hash for Closure {
@@ -32,12 +32,6 @@ impl Hash for Func {
             Func::Proto(p) => p.hash(state),
             Func::Builtin(_) => "rsfunc".hash(state),
         }
-    }
-}
-
-impl Func {
-    pub fn with_proto(proto: Rc<Prototype>) -> Self {
-        Func::Proto(proto)
     }
 }
 

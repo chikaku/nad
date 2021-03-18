@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use std::ops::BitAnd;
 
 use crate::opcode::{ArgType, Code, Mode, ALL, RET};
-use crate::state::State;
+use crate::State;
 
 #[derive(Copy, Clone, Hash)]
 pub struct Instruction(pub u32);

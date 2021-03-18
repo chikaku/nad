@@ -1,6 +1,7 @@
 use crate::instruction::Instruction;
 use crate::state::State;
-use crate::value::{fb2int, Value};
+use crate::value::Value;
+use crate::value_impl::fb2int;
 
 #[derive(Eq, PartialEq)]
 pub enum Mode {
@@ -19,7 +20,9 @@ pub enum ArgType {
 }
 
 pub struct Code {
+    #[allow(dead_code)]
     test_flag: u8,
+    #[allow(dead_code)]
     seta_flag: u8,
     pub argb_mode: ArgType,
     pub argc_mode: ArgType,
@@ -407,7 +410,8 @@ fn vararg(ins: Instruction, state: &mut State) {
     }
 }
 
-fn tail_call(ins: Instruction, state: &mut State) {
+#[allow(dead_code)]
+fn tail_call(_: Instruction, _: &mut State) {
     unimplemented!()
 }
 

@@ -1,20 +1,9 @@
-use std::env::args;
-
-mod builtin;
-mod chunk;
-mod func;
-mod instruction;
-mod opcode;
-mod prototype;
-mod reader;
-mod stack;
-mod state;
-mod value;
-
-use crate::state::State;
-
 use ansi_term::Color::{Green, Red};
+use std::env::args;
 use std::fmt::Debug;
+
+use rain::Reader;
+use rain::State;
 
 fn main() {
     let args = args();
@@ -51,13 +40,13 @@ impl Option {
         if self.dump {
             self.path.iter().for_each(|path| {
                 println!("{}", Green.bold().paint(path));
-                reader::Reader::from_file(path).dump_proto();
+                Reader::from_file(path).dump_proto();
             })
         }
 
         if self.exec {
             self.path.iter().for_each(|path| {
-                let ch = reader::Reader::from_file(path).into_chunk();
+                let ch = Reader::from_file(path).into_chunk();
                 let mut state = State::from_chunk(ch);
 
                 state.call(0, 0);
@@ -68,8 +57,7 @@ impl Option {
 
 #[cfg(test)]
 mod playground {
-    use crate::value::Value;
-    use std::cell::{Cell, Ref, RefCell};
+    use std::cell::{Ref, RefCell};
     use std::rc::Rc;
 
     struct Foo<T: Clone> {
@@ -77,19 +65,23 @@ mod playground {
     }
 
     impl<T: Clone> Foo<T> {
-        fn get_bar(&self, index: usize) -> T {
-            self.bar[index].borrow_mut().clone()
+        fn get_bar(&self, index: usize) -> Ref<T> {
+            self.bar[index].borrow()
+        }
+
+        fn get_bar_ref(&self) {
+            let _: &T = &*self.get_bar(0);
         }
     }
 
     #[test]
-    fn main() {
-        let size = 2;
-        let v = (0..size)
-            .into_iter()
-            .map(|_| RefCell::from(Value::Nil))
-            .collect::<Vec<_>>();
-
-        *v[0].borrow_mut() = Value::String("123".to_string());
+    fn test_ref() {
+        let foo = Foo {
+            bar: vec![Rc::new(RefCell::new(1))],
+        };
+        foo.get_bar_ref();
     }
+
+    #[test]
+    fn main() {}
 }
