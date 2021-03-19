@@ -1,10 +1,14 @@
 [package]
-name = "rain"
+name = "nad"
 version = "0.1.0"
 authors = ["Kevin Chen <kevin@chenbc.me>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Incomplete Lua VM"
+homepage = "https://github.com/chikaku/nad"
+repository = "https://github.com/chikaku/nad"
+readme = "README.md"
+documentation = "https://docs.rs/nad"
+license = "MIT"
 
 [dependencies]
 ansi_term = "0.12"

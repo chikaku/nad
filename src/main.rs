@@ -2,8 +2,8 @@ use ansi_term::Color::{Green, Red};
 use std::env::args;
 use std::fmt::Debug;
 
-use rain::State;
-use rain::{Options, Reader};
+use nad::State;
+use nad::{Options, Reader};
 
 fn main() {
     let args = args();
@@ -52,11 +52,11 @@ impl Option {
 
         if self.exec || !self.dump {
             self.iter_file(|path| {
-                let mut state = State::from_file(path);
-                state.with_option(Options {
-                    show_ins: self.debug,
-                });
-                state.call(0, 0);
+                State::from_file(path)
+                    .with_option(Options {
+                        show_ins: self.debug,
+                    })
+                    .call(0, 0);
             })
         }
     }

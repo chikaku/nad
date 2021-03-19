@@ -1,20 +1,21 @@
-use ansi_term::Color::Green;
-use std::env;
-
 mod util;
-use rain::{Options, State};
-use util::iter_luac;
 
-#[test]
-fn run_code() {
-    let opt = Options::new(env::var("DEBUG").is_ok());
+mod run_code {
+    use super::util::iter_luac;
+    use nad::{Options, State};
 
-    iter_luac(|path| {
-        println!("===========================");
-        println!("exec: {}", Green.paint(path.to_str().unwrap()));
+    use ansi_term::Color::Green;
+    use std::env;
 
-        let mut state = State::from_file(path);
-        state.with_option(opt.clone());
-        state.call(0, 0);
-    })
+    #[test]
+    fn run_code() {
+        let opt = Options::new(env::var("DEBUG").is_ok());
+
+        iter_luac(|path| {
+            println!("===========================");
+            println!("exec: {}", Green.paint(path.to_str().unwrap()));
+
+            State::from_file(path).with_option(opt.clone()).call(0, 0);
+        })
+    }
 }

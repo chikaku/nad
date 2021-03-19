@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rain"
+name = "nad"
 version = "0.1.0"
 dependencies = [
  "ansi_term",

@@ -69,8 +69,9 @@ impl State {
         state
     }
 
-    pub fn with_option(&mut self, opts: Options) {
+    pub fn with_option(mut self, opts: Options) -> Self {
         self.options = opts;
+        self
     }
 
     pub(in crate) fn stack(&self) -> &Stack {
@@ -292,8 +293,6 @@ impl State {
         self.stack().get(index).into_float().unwrap()
     }
 }
-
-// Map
 
 #[cfg(test)]
 mod tests {
